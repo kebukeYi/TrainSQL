@@ -1,3 +1,3 @@
 # TrainDB
 
-数据库
+SQL数据库
