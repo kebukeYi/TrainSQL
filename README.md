@@ -1,3 +1,3 @@
 # TrainDB
 
-SQL数据库
+SQL数据库开发练习;
