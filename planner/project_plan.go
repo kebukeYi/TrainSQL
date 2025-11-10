@@ -23,8 +23,8 @@ func NewProjectPlan(p Plan, fieldList []string) *ProjectPlan {
 	return &project_plan
 }
 
-func (p *ProjectPlan) Open() interface{} {
-	s := p.p.Open()
+func (p *ProjectPlan) StartScan() interface{} {
+	s := p.p.StartScan()
 	return query.NewProjectScan(s.(query.Scan), p.schema.Fields())
 }
 
@@ -37,6 +37,7 @@ func (p *ProjectPlan) RecordsOutput() int {
 }
 
 func (p *ProjectPlan) DistinctValues(fldName string) int {
+	// 判断当前字段存在多少不同的值;
 	return p.p.DistinctValues(fldName)
 }
 

@@ -4,11 +4,9 @@ import (
 	"github.com/kebukeYi/TrainSQL/record_manager"
 )
 
-// expr -> expr op term;
-
 type Expression struct {
-	val     *Constant
-	fldName string
+	fldName string    // 要么是字段名, 需要实时根据查询的记录来获得值;
+	val     *Constant // 要么是常量, 通常是用户手动指定输入;
 }
 
 func NewExpressionWithConstant(val *Constant) *Expression {
@@ -38,9 +36,8 @@ func (e *Expression) AsFieldName() string {
 }
 
 func (e *Expression) Evaluate(s Scan) *Constant {
-	/**
-	* expression 有可能对应一个常量，或者对应一个字段名，如果是后者，那么我们需要查询该字段对应的具体值
-	**/
+	// expression 有可能对应一个常量;
+	// 或者对应一个字段名, 如果是后者, 那么我们需要查询该字段对应的具体值;
 	if e.val != nil {
 		return e.val
 	}

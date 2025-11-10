@@ -34,13 +34,13 @@ func (s *StatInfo) RecordsOutput() int {
 
 func (s *StatInfo) DistinctValues(fldName string) int {
 	// 某个字段, 包含多少行不同的值
-	return 1 + (s.numRecs / 3) // 初步认为三分之一，后面再修改
+	return 1 + (s.numRecs / 3) // 初步认为三分之一，后面再修改;
 }
 
 type StatManager struct {
 	tblMgr     *TableManager
-	tableStats map[string]*StatInfo
-	numCalls   int // 统计数据调用次数
+	tableStats map[string]*StatInfo // 每张表的统计信息,包括行数以及块数;
+	numCalls   int                  // 统计数据调用次数
 	lock       sync.Mutex
 }
 
@@ -49,7 +49,7 @@ func NewStatManager(tblMgr *TableManager, tx *tx.Translation) *StatManager {
 		tblMgr:   tblMgr,
 		numCalls: 0,
 	}
-	//更新统计数据
+	// 更新统计数据;
 	statMgr.refreshStatistics(tx)
 	return statMgr
 }
@@ -78,6 +78,7 @@ func (s *StatManager) refreshStatistics(tx *tx.Translation) {
 	for tcat.Next() {
 		tblName := tcat.GetString("tblname")
 		layout := s.tblMgr.GetLayout(tblName, tx)
+		// 计算数据库, 表有多少行记录, 以及涉及到的区块数量;
 		si := s.calcTableStats(tblName, layout, tx)
 		s.tableStats[tblName] = si
 	}

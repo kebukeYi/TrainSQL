@@ -13,17 +13,8 @@ import (
 	"testing"
 )
 
-func init() {
-	util.ClearDir(util.QueryScanTestDirectory)
-	fmt.Println("init")
-}
-
-func TestName(t *testing.T) {
-	fmt.Printf("QueryScanTest")
-}
-
 func TestTableScanInsertAndDelete(t *testing.T) {
-	// util.ClearDir(util.QueryScanTestDirectory)
+	util.ClearDir(util.QueryScanTestDirectory)
 	file_manager, _ := fm.NewFileManager(util.QueryScanTestDirectory, 400)
 	log_manager, _ := lm.NewLogManager(file_manager, "logfile.log")
 	buffer_manager := bmg.NewBufferManager(file_manager, log_manager, 3)
@@ -39,7 +30,6 @@ func TestTableScanInsertAndDelete(t *testing.T) {
 		fmt.Printf("%s has offset %d\n", field_name, offset)
 	}
 
-	//
 	ts := NewTableScan(tx, "T", layout)
 	fmt.Println("Filling the table with 50 random records")
 	ts.BeforeFirst()
@@ -86,7 +76,6 @@ func TestTableScanInsertAndDelete(t *testing.T) {
 		require.Equal(t, a >= 25, true)
 		fmt.Printf("slot %s : { %d , %s }\n", ts.GetRid().ToString(), a, b)
 	}
-
-	ts.Close()
 	tx.Commit()
+	ts.Close()
 }

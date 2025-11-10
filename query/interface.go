@@ -4,6 +4,7 @@ import (
 	"github.com/kebukeYi/TrainSQL/record_manager"
 )
 
+// Scan 定义了扫描器的接口;
 type Scan interface {
 	BeforeFirst()
 	Next() bool
@@ -16,6 +17,7 @@ type Scan interface {
 	Close()
 }
 
+// UpdateScan 继承了 Scan 接口, 并有修改作用;
 type UpdateScan interface {
 	GetScan() Scan
 	SetInt(fldName string, val int)
@@ -30,7 +32,7 @@ type UpdateScan interface {
 
 // Plan 将 Planner 接口定义放在这里是为了防止循环引用;
 type Plan interface {
-	Open() interface{}
+	StartScan() interface{}            // Scan
 	BlocksAccessed() int               //对应 B(s)
 	RecordsOutput() int                //对应 R(s)
 	DistinctValues(fldName string) int //对应 V(s,F)

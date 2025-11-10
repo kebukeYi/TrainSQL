@@ -6,8 +6,8 @@ import (
 )
 
 type SelectPlan struct {
-	p    Plan
-	pred *query.Predicate
+	p    Plan             // tablePlan
+	pred *query.Predicate // 统计信息
 }
 
 func NewSelectPlan(p Plan, pred *query.Predicate) *SelectPlan {
@@ -17,8 +17,8 @@ func NewSelectPlan(p Plan, pred *query.Predicate) *SelectPlan {
 	}
 }
 
-func (s *SelectPlan) Open() interface{} {
-	scan := s.p.Open()
+func (s *SelectPlan) StartScan() interface{} {
+	scan := s.p.StartScan()
 	return query.NewSelectionScan(scan.(query.UpdateScan), s.pred)
 }
 
@@ -28,9 +28,10 @@ func (s *SelectPlan) BlocksAccessed() int {
 
 func (s *SelectPlan) RecordsOutput() int {
 	/*
-			这里是一种预估,假设 student 有 90 条记录，根据原来我们在 StatInfo 中做的假设，
-		    也就是给定字段取不同值的数量是总数的 1/3，于是假设表中有字段 age，那么根据假设，他有 31 种
-		    不同取值可能，于是当 where 过滤条件为 age=20,那么我们预计满足条件的记录有 90/31=2 条
+			这里是一种预估,假设 student 有 90 条记录, 根据原来我们在 StatInfo 中做的假设，
+			也就是给定字段取不同值的数量是总数的 1/3;
+		    于是假设表中有字段 age,那么根据假设,他有 30 种不同取值可能,
+			于是当 where 过滤条件为 age=20, 那么我们预计满足条件的记录有 90/31=2 条;
 	*/
 	return s.p.RecordsOutput() / s.pred.ReductionFactor(s.p)
 }
@@ -39,20 +40,23 @@ func (s *SelectPlan) min(a int, b int) int {
 	if a <= b {
 		return a
 	}
-
 	return b
 }
 
 func (s *SelectPlan) DistinctValues(fldName string) int {
+	// 左右两边 都存在一个常量;
 	if s.pred.EquatesWithConstant(fldName) != nil {
-		// 如果查询是 A=c 类型，A 是字段，c 是常量，那么查询结果返回一条数据
+		// 如果查询是 A=c 类型，A 是字段，c 是常量，那么查询结果返回一条数据;
 		return 1
 	} else {
-		// 如果查询是 A=B 类型，A,B 都是字段，那么查询结果返回不同类型数值较小的那个字段
+		// id = studentID;
+		// 如果查询是 A=B 类型; A,B 都是字段, 那么查询结果返回不同类型数值较小的那个字段;
 		fldName2 := s.pred.EquatesWithField(fldName)
 		if fldName2 != "" {
+			// 获取两个字段的最小值
 			return s.min(s.p.DistinctValues(fldName), s.p.DistinctValues(fldName2))
 		} else {
+			//
 			return s.p.DistinctValues(fldName)
 		}
 	}

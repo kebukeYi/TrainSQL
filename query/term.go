@@ -18,8 +18,11 @@ func NewTerm(lhs *Expression, rhs *Expression) *Term {
 }
 
 func (t *Term) IsSatisfied(s Scan) bool {
+	// 如果左边有值,就取值, 否则就是字段, 从s中获得当前字段的值;
 	lhsVal := t.lhs.Evaluate(s)
+	// 如果右边有值,就取值, 否则就是字段, 从s中获得当前字段的值;
 	rhsVal := t.rhs.Evaluate(s)
+	// 比较两个值是否相等;
 	return rhsVal.Equals(lhsVal)
 }
 
@@ -58,8 +61,10 @@ func (t *Term) ReductionFactor(p Plan) int {
 }
 
 func (t *Term) EquatesWithConstant(fldName string) *Constant {
+	// 左边是字段,右边是常量;
 	if t.lhs.IsFieldName() && t.lhs.AsFieldName() == fldName && !t.rhs.IsFieldName() {
 		return t.rhs.AsConstant()
+		// 右边是字段,左边是常量;
 	} else if t.rhs.IsFieldName() && t.rhs.AsFieldName() == fldName && !t.lhs.IsFieldName() {
 		return t.lhs.AsConstant()
 	} else {
@@ -73,7 +78,6 @@ func (t *Term) EquatesWithField(fldName string) string {
 	} else if t.rhs.IsFieldName() && t.rhs.AsFieldName() == fldName && t.lhs.IsFieldName() {
 		return t.lhs.AsFieldName()
 	}
-
 	return ""
 }
 

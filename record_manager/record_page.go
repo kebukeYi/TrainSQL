@@ -14,9 +14,9 @@ const (
 )
 
 type RecordPage struct {
-	tx     *tx.Translation
-	blk    *fm.BlockIndex
-	layout LayoutInterface
+	tx     *tx.Translation // 持久化更改记录的修改值;
+	blk    *fm.BlockIndex  // 绑定的区块信息;
+	layout LayoutInterface // 作用是获取字段的位移;
 }
 
 func NewRecordPage(tx *tx.Translation, blk *fm.BlockIndex,
@@ -38,7 +38,9 @@ func (r *RecordPage) offset(slot int) uint64 {
 }
 
 func (r *RecordPage) GetInt(slot int, field_name string) int {
+	// 块内位移
 	field_pos := r.offset(slot) + uint64(r.layout.Offset(field_name))
+	// 第几块+块内位移;
 	val, err := r.tx.GetInt(r.blk, field_pos)
 	if err == nil {
 		return int(val)

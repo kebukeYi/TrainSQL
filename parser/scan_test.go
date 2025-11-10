@@ -53,7 +53,7 @@ func TestTableScan(t *testing.T) {
 	ts.SetInt("id", 890)
 
 	// 构造查询 student 表的 sql 语句, 这条语句包含了 select, project 两种操作;
-	sql := "select name, age from student where id = 890;"
+	sql := "select id, name, age from student where id = 890;"
 	//sql := "select * from student where id = 890;"
 	sqlParser := NewSQLParser(sql)
 	queryData := sqlParser.Select()
@@ -70,6 +70,7 @@ func TestTableScan(t *testing.T) {
 	for projectScan.Next() == true {
 		//查找满足条件的记录
 		fmt.Println("found record!")
+		// 只要指定列的值;
 		for _, field := range queryData.Fields() {
 			fmt.Printf("field:%s, value:%v, ", field, projectScan.GetVal(field).ToString())
 		}

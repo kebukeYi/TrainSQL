@@ -10,8 +10,8 @@ package query
 
 // ProjectScan 影子筛选;
 type ProjectScan struct {
-	scan      Scan
-	fieldList []string
+	scan      Scan     // 默认是 selectionScan(tableScan)
+	fieldList []string // 投影字段列表;
 }
 
 func NewProjectScan(s Scan, fieldList []string) *ProjectScan {

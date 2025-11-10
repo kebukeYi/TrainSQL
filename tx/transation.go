@@ -201,8 +201,7 @@ func (t *Translation) SetString(blk *fm.BlockIndex, offset uint64, val string, o
 }
 
 func (t *Translation) Size(file_name string) (uint64, error) {
-	// 调用同步管理器加锁
-	// 空块加锁, 禁止再申请新块;
+	// 调用同步管理器加锁, 空块加锁, 禁止再申请新块;
 	dummy_blk := fm.NewBlockIndex(file_name, uint64(END_OF_FILE))
 	err := t.concur_mgr.SLock(dummy_blk, t.tx_num)
 	if err != nil {

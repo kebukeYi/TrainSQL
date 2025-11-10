@@ -24,7 +24,8 @@ func (p *Predicate) ConjoinWith(pred *Predicate) {
 }
 
 func (p *Predicate) IsSatisfied(s Scan) bool {
-	for _, t := range p.terms {
+	// 判断是否满足 where id = 890 || Id = majorId;
+	for _, t := range p.terms { // where id = 890;
 		if !t.IsSatisfied(s) {
 			return false
 		}
@@ -74,6 +75,7 @@ func (p *Predicate) JoinSubPred(sch1 *record_manager.Schema, sch2 *record_manage
 
 func (p *Predicate) EquatesWithConstant(fldName string) *Constant {
 	for _, t := range p.terms {
+		//
 		c := t.EquatesWithConstant(fldName)
 		if c != nil {
 			return c
@@ -90,7 +92,6 @@ func (p *Predicate) EquatesWithField(fldName string) string {
 			return s
 		}
 	}
-
 	return ""
 }
 

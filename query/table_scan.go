@@ -10,9 +10,9 @@ import (
 type TableScan struct {
 	tx           *tx.Translation
 	layout       record_manager.LayoutInterface        // 表的布局信息;
-	rp           record_manager.RecordManagerInterface // 修改记录作用;
-	file_name    string
-	current_slot int // 默认为-1
+	rp           record_manager.RecordManagerInterface // 当前记录,并有修改作用;
+	file_name    string                                // 要访问的文件名字;
+	current_slot int                                   // 槽位默认为-1;
 }
 
 func NewTableScan(tx *tx.Translation, table_name string, layout record_manager.LayoutInterface) *TableScan {
@@ -21,7 +21,7 @@ func NewTableScan(tx *tx.Translation, table_name string, layout record_manager.L
 		layout:    layout,
 		file_name: table_name + ".tbl",
 	}
-	// 会尝试 获得 fldcat.tbl 文件的 SLock 锁;
+	// 获得这个文件的的最新区块数量
 	size, err := tx.Size(table_scan.file_name)
 	if err != nil {
 		panic(err)
@@ -30,7 +30,7 @@ func NewTableScan(tx *tx.Translation, table_name string, layout record_manager.L
 		//如果文件为空，那么增加一个区块
 		table_scan.MoveToNewBlock()
 	} else {
-		// 先读取第一个区块
+		// 先读取第一个区块;
 		table_scan.MoveToBlock(0)
 	}
 	return table_scan
@@ -105,7 +105,7 @@ func (t *TableScan) SetVal(field_name string, val *Constant) {
 
 func (t *TableScan) Insert() {
 	/*
-		将当前插槽号指向下一个可用插槽
+		将当前插槽号指向下一个可用插槽;
 	*/
 	t.current_slot = t.rp.InsertAfter(t.current_slot)
 	for t.current_slot < 0 { //当前区块找不到可用插槽

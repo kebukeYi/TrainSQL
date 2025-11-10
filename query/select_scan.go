@@ -6,8 +6,8 @@ import (
 
 // SelectionScan 作用于: select name,age from student where age > 20;
 type SelectionScan struct {
-	updateScan UpdateScan
-	pred       *Predicate // 表达式
+	updateScan UpdateScan // 默认是 tableScan
+	pred       *Predicate // where 表达式
 }
 
 func NewSelectionScan(s UpdateScan, pred *Predicate) *SelectionScan {
@@ -24,8 +24,11 @@ func (s *SelectionScan) BeforeFirst() {
 func (s *SelectionScan) Next() bool {
 	for s.updateScan.GetScan().Next() {
 		// 判断 是否满足 where age = 20;
-		if s.pred.IsSatisfied(s.updateScan.GetScan()) {
+		scan := s.updateScan.GetScan()
+		if s.pred.IsSatisfied(scan) {
 			return true
+		} else {
+			// 不匹配则跳过, 继续下一个 tableScan.next();
 		}
 	}
 	return false
@@ -72,7 +75,6 @@ func (s *SelectionScan) Insert() {
 }
 
 func (s *SelectionScan) GetRid() *record_manager.RID {
-	//
 	return s.updateScan.GetRid()
 }
 

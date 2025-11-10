@@ -23,7 +23,7 @@ func (b *BasicUpdatePlanner) ExecuteDelete(data *parser.DeleteData, tx *tx.Trans
 	*/
 	tablePlan := NewTablePlan(tx, data.TableName(), b.mdm)
 	selectPlan := NewSelectPlan(tablePlan, data.Pred())
-	scan := selectPlan.Open()
+	scan := selectPlan.StartScan()
 	updateScan := scan.(*query.SelectionScan)
 	count := 0
 	for updateScan.Next() {
@@ -40,7 +40,7 @@ func (b *BasicUpdatePlanner) ExecuteModify(data *parser.ModifyData, tx *tx.Trans
 	*/
 	tablePlan := NewTablePlan(tx, data.TableName(), b.mdm)
 	selectPlan := NewSelectPlan(tablePlan, data.Pred())
-	scan := selectPlan.Open()
+	scan := selectPlan.StartScan()
 	updateScan := scan.(*query.SelectionScan)
 	count := 0
 	for updateScan.Next() {
@@ -52,16 +52,15 @@ func (b *BasicUpdatePlanner) ExecuteModify(data *parser.ModifyData, tx *tx.Trans
 }
 
 func (b *BasicUpdatePlanner) ExecuteInsert(data *parser.InsertData, tx *tx.Translation) int {
+	// 提供表的信息, 以及表的遍历读写能力;
 	tablePlan := NewTablePlan(tx, data.TableName(), b.mdm)
-	updateScan := tablePlan.Open().(*query.TableScan)
-	updateScan.Insert()
+	updateScan := tablePlan.StartScan().(*query.TableScan)
+	updateScan.Insert() // 找到槽位
 	insertFields := data.Fields()
 	insertedVals := data.Vals()
-
 	for i := 0; i < len(insertFields); i++ {
 		updateScan.SetVal(insertFields[i], insertedVals[i])
 	}
-
 	updateScan.Close()
 	return 1
 }

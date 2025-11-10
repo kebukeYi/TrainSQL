@@ -12,12 +12,12 @@ import (
 )
 
 func PrintStudentTable(tx *tx.Translation, mdm *metadata_manager.MetaDataManager) {
-	queryStr := "select name, majorid, gradyear from STUDENT;"
+	queryStr := "select id, name, majorid, gradyear,grad from STUDENT;"
 	p := parser.NewSQLParser(queryStr) //
 	queryData := p.Select()            //
 	test_planner := planner.CreateBasicQueryPlanner(mdm)
 	test_plan := test_planner.CreatePlan(queryData, tx)
-	test_interface := (test_plan.Open())
+	test_interface := (test_plan.StartScan())
 	test_scan, _ := test_interface.(query.Scan)
 	for test_scan.Next() {
 		fmt.Printf("name: %s, majorid: %d, gradyear: %d\n",
@@ -35,20 +35,38 @@ func TestCreateInsertUpdateByUpdatePlanner(t *testing.T) {
 		LogFilePathName: "logfile.log",
 	}
 	db := NewDBWithOptions(option)
+	defer db.Close()
 	tx := db.NewTranslation()
-
 	mdm := metadata_manager.NewMetaDataManager(db.file_manager.IsNew(), tx)
+	// 提供修改功能的planner;
 	updatePlanner := planner.NewBasicUpdatePlanner(mdm)
-	createTableSql := "create table STUDENT (name varchar(16), majorid int, gradyear int);"
+	createTableSql := "create table STUDENT (id int, name varchar(16), majorid int, gradyear int,grad varchar(10));"
 	p := parser.NewSQLParser(createTableSql)
 	tableData := p.ParseCommand().(*parser.CreateTableData)
+	// 调用TableManager创建表;
 	updatePlanner.ExecuteCreateTable(tableData, tx)
 
-	insertSQL := "insert into STUDENT (name, majorid, gradyear) values(\"tylor\", 30, 2020);"
+	insertSQL := "insert into STUDENT (id, name, majorid, gradyear, grad) values(10,\"tylor\", 10, 2020,\"A\");"
 	p = parser.NewSQLParser(insertSQL)
 	insertData := p.ParseCommand().(*parser.InsertData)
 	updatePlanner.ExecuteInsert(insertData, tx)
-	insertSQL = "insert into STUDENT (name, majorid, gradyear) values(\"tom\", 35, 2023);"
+
+	insertSQL = "insert into STUDENT (id, name, majorid, gradyear, grad) values(10,\"tom\", 10, 2021,\"B\");"
+	p = parser.NewSQLParser(insertSQL)
+	insertData = p.ParseCommand().(*parser.InsertData)
+	updatePlanner.ExecuteInsert(insertData, tx)
+
+	insertSQL = "insert into STUDENT (id, name, majorid, gradyear, grad) values(20,\"mike\", 10, 2022,\"A\");"
+	p = parser.NewSQLParser(insertSQL)
+	insertData = p.ParseCommand().(*parser.InsertData)
+	updatePlanner.ExecuteInsert(insertData, tx)
+
+	insertSQL = "insert into STUDENT (id, name, majorid, gradyear, grad) values(20,\"jone\", 50, 2023,\"C\");"
+	p = parser.NewSQLParser(insertSQL)
+	insertData = p.ParseCommand().(*parser.InsertData)
+	updatePlanner.ExecuteInsert(insertData, tx)
+
+	insertSQL = "insert into STUDENT (id, name, majorid, gradyear, grad) values(20,\"que\", 35, 2024,\"C\");"
 	p = parser.NewSQLParser(insertSQL)
 	insertData = p.ParseCommand().(*parser.InsertData)
 	updatePlanner.ExecuteInsert(insertData, tx)
@@ -56,7 +74,7 @@ func TestCreateInsertUpdateByUpdatePlanner(t *testing.T) {
 	fmt.Println("table after insert:")
 	PrintStudentTable(tx, mdm)
 
-	updateSQL := "update STUDENT set majorid=20 where majorid=30 and gradyear=2020;"
+	updateSQL := "update STUDENT set name=\"newtylor\" where majorid=10 and gradyear=2020;"
 	p = parser.NewSQLParser(updateSQL)
 	updateData := p.ParseCommand().(*parser.ModifyData)
 	updatePlanner.ExecuteModify(updateData, tx)
@@ -71,6 +89,35 @@ func TestCreateInsertUpdateByUpdatePlanner(t *testing.T) {
 
 	fmt.Println("table after delete")
 	PrintStudentTable(tx, mdm)
+	tx.Commit()
+}
+
+func TestSelectStudentPlan(t *testing.T) {
+	option := &DBOptions{
+		DBDirectory:     util.PlannerDirectory,
+		BlockSize:       2048,
+		BufferSize:      30,
+		LogFilePathName: "logfile.log",
+	}
+	db := NewDBWithOptions(option)
+	tx := db.NewTranslation()
+	defer db.Close()
+	mdm := metadata_manager.NewMetaDataManager(db.file_manager.IsNew(), tx)
+	queryStr := "select id, name, majorid, gradyear,grad from STUDENT where id = majorid and grad=\"A\";"
+	//queryStr := "select id, name, majorid, gradyear,grad from STUDENT;"
+	p := parser.NewSQLParser(queryStr) //
+	queryData := p.Select()            // 解析sql语句; 并把where条件 组装起来;
+	// prd [term,term,term,term{left,right}]
+	test_planner := planner.CreateBasicQueryPlanner(mdm)
+	test_plan := test_planner.CreatePlan(queryData, tx)
+	test_interface := (test_plan.StartScan())
+	test_scan, _ := test_interface.(query.Scan)
+	for test_scan.Next() {
+		fmt.Printf("name: %s, majorid: %d, gradyear: %d\n",
+			test_scan.GetString("name"), test_scan.GetInt("majorid"),
+			test_scan.GetInt("gradyear"))
+	}
+	tx.Commit()
 }
 
 func TestIndex(t *testing.T) {
@@ -111,7 +158,7 @@ func TestIndex(t *testing.T) {
 	mdm.CreateIndex("majoridIdx", "STUDENT", "majorid", tx)
 	// 查询建立在 student 表上的索引并根据索引输出对应的记录信息;
 	studetPlan := planner.NewTablePlan(tx, "STUDENT", mdm)
-	updateScan := studetPlan.Open().(*query.TableScan)
+	updateScan := studetPlan.StartScan().(*query.TableScan)
 
 	// 先获得当前表的所有的索引列对象; 这里我们只有 majorid 列建立了索引对象;
 	indexes := mdm.GetIndexInfo("STUDENT", tx)

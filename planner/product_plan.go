@@ -22,9 +22,9 @@ func NewProductPlan(p1 Plan, p2 Plan) *ProductPlan {
 	return &product_plan
 }
 
-func (p *ProductPlan) Open() interface{} {
-	s1 := p.p1.Open()
-	s2 := p.p2.Open()
+func (p *ProductPlan) StartScan() interface{} {
+	s1 := p.p1.StartScan()
+	s2 := p.p2.StartScan()
 	return query.NewProductScan(s1.(query.Scan), s2.(query.Scan))
 }
 
