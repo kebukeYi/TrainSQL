@@ -2,7 +2,7 @@ package parser
 
 import (
 	"fmt"
-	"practiceSQL/sql/types"
+	"github.com/kebukeYi/TrainSQL/sql/types"
 )
 
 type Statement interface {

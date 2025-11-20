@@ -2,8 +2,8 @@ package server
 
 import (
 	"fmt"
-	"practiceSQL/sql/server/executor"
-	"practiceSQL/sql/types"
+	"github.com/kebukeYi/TrainSQL/sql/server/executor"
+	"github.com/kebukeYi/TrainSQL/sql/types"
 )
 
 func (s *KVService) ExecuteScan(e executor.Executor) types.ResultSet {

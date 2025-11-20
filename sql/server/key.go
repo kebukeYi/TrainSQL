@@ -1,6 +1,6 @@
 package server
 
-import "practiceSQL/sql/types"
+import "github.com/kebukeYi/TrainSQL/sql/types"
 
 var (
 	Table_ = "Table_"

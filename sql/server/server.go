@@ -1,7 +1,7 @@
 package server
 
 import (
-	"practiceSQL/storage"
+	"github.com/kebukeYi/TrainSQL/storage"
 )
 
 type Server interface {

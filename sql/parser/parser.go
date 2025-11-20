@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"practiceSQL/sql/types"
-	"practiceSQL/sql/util"
+	"github.com/kebukeYi/TrainSQL/sql/types"
+	"github.com/kebukeYi/TrainSQL/sql/util"
 	"strconv"
 )
 

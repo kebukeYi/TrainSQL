@@ -2,9 +2,9 @@ package server
 
 import (
 	"fmt"
-	"practiceSQL/sql/server/executor"
-	"practiceSQL/sql/types"
-	"practiceSQL/sql/util"
+	"github.com/kebukeYi/TrainSQL/sql/server/executor"
+	"github.com/kebukeYi/TrainSQL/sql/types"
+	"github.com/kebukeYi/TrainSQL/sql/util"
 )
 
 // 列对齐自动填充;

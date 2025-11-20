@@ -1,10 +1,10 @@
 package server
 
 import (
-	"practiceSQL/sql/parser"
-	"practiceSQL/sql/plan"
-	"practiceSQL/sql/types"
-	"practiceSQL/sql/util"
+	"github.com/kebukeYi/TrainSQL/sql/parser"
+	"github.com/kebukeYi/TrainSQL/sql/plan"
+	"github.com/kebukeYi/TrainSQL/sql/types"
+	"github.com/kebukeYi/TrainSQL/sql/util"
 )
 
 type Session struct {

@@ -1,9 +1,9 @@
 package plan
 
 import (
-	"practiceSQL/sql/parser"
-	"practiceSQL/sql/server/executor"
-	"practiceSQL/sql/types"
+	"github.com/kebukeYi/TrainSQL/sql/parser"
+	"github.com/kebukeYi/TrainSQL/sql/server/executor"
+	"github.com/kebukeYi/TrainSQL/sql/types"
 )
 
 type Node interface {

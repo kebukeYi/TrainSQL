@@ -3,14 +3,14 @@ package storage
 import (
 	"bytes"
 	"fmt"
+	"github.com/kebukeYi/TrainSQL/sql/util"
 	"github.com/rosedblabs/rosedb/v2"
 	"github.com/rosedblabs/rosedb/v2/utils"
 	"github.com/stretchr/testify/assert"
-	"practiceSQL/sql/util"
 	"testing"
 )
 
-var storageDirPath = "test_data"
+var storageDirPath = "/usr/golanddata/trainsql/storage"
 
 func TestAscendGreaterOrEqual(t *testing.T) {
 	// Create a test database instance

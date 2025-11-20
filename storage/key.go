@@ -2,7 +2,7 @@ package storage
 
 import (
 	"encoding/binary"
-	"practiceSQL/sql/util"
+	"github.com/kebukeYi/TrainSQL/sql/util"
 )
 
 var (

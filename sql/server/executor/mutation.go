@@ -1,7 +1,7 @@
 package executor
 
 import (
-	"practiceSQL/sql/types"
+	"github.com/kebukeYi/TrainSQL/sql/types"
 )
 
 type InsertTableExecutor struct {

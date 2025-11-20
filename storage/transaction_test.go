@@ -1,12 +1,12 @@
 package storage
 
 import (
+	"github.com/kebukeYi/TrainSQL/sql/util"
 	"github.com/stretchr/testify/assert"
-	"practiceSQL/sql/util"
 	"testing"
 )
 
-var txnDirPath = "/usr/golanddata/practiceSQL/txn"
+var txnDirPath = "/usr/golanddata/trainsql/txn"
 
 func GetDiskStorage(txnDirPath string) *DiskStorage {
 	util.ClearPath(txnDirPath)

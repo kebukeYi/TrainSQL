@@ -1,4 +1,4 @@
-module practiceSQL
+module github.com/kebukeYi/TrainSQL
 
 go 1.23.0
 

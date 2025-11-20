@@ -1,12 +1,12 @@
 package server
 
 import (
-	"practiceSQL/sql/util"
-	"practiceSQL/storage"
+	"github.com/kebukeYi/TrainSQL/sql/util"
+	"github.com/kebukeYi/TrainSQL/storage"
 	"testing"
 )
 
-var dirPath = "/usr/golanddata/practiceSQL/server"
+var dirPath = "/usr/golanddata/trainsql/server"
 
 func TestKVService_ExecuteCreateTable(t *testing.T) {
 	util.ClearPath(dirPath)

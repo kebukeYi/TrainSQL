@@ -3,10 +3,10 @@ package server
 import (
 	"bytes"
 	"encoding/gob"
-	"practiceSQL/sql/server/executor"
-	"practiceSQL/sql/types"
-	"practiceSQL/sql/util"
-	"practiceSQL/storage"
+	"github.com/kebukeYi/TrainSQL/sql/server/executor"
+	"github.com/kebukeYi/TrainSQL/sql/types"
+	"github.com/kebukeYi/TrainSQL/sql/util"
+	"github.com/kebukeYi/TrainSQL/storage"
 )
 
 type Service interface {

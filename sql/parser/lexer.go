@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"github.com/kebukeYi/TrainSQL/sql/util"
 	"io"
-	"practiceSQL/sql/util"
 	"strings"
 	"unicode"
 )
