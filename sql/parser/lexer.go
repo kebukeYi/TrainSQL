@@ -189,6 +189,9 @@ func (le *Lexer) scanString() *Token {
 			result = append(result, ch...)
 		}
 	}
+	if result == nil || len(result) == 0 || string(result) == "" || string(result) == "''" {
+		util.Error("not  ''  ")
+	}
 	return &Token{Type: STRING, Value: TokenValue(result)}
 }
 func (le *Lexer) scanNumber() *Token {
@@ -205,8 +208,14 @@ func (le *Lexer) scanNumber() *Token {
 		num2, _ := le.nextWhile(func(r byte) bool {
 			return unicode.IsDigit(rune(r))
 		})
+		if num2 == nil || len(num2) == 0 || string(num2) == "" {
+			util.Error("error input number: %s\n", string(num))
+		}
 		num = append(num, num2...)
 	}
+	//if num[len(num)-1] == '.' {
+	//	util.Error("Mismatch '.'")
+	//}
 	// 后面不是小数点:
 	// 1. 说明只读一个整数,返回即可;
 	// 2. 说明读到EOF末尾, 返回即可;

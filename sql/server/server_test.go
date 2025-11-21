@@ -1,7 +1,6 @@
 package server
 
 import (
-	"github.com/kebukeYi/TrainSQL/sql/util"
 	"github.com/kebukeYi/TrainSQL/storage"
 	"testing"
 )
@@ -9,19 +8,20 @@ import (
 var dirPath = "/usr/golanddata/trainsql/server"
 
 func TestKVService_ExecuteCreateTable(t *testing.T) {
-	util.ClearPath(dirPath)
-	// diskStorage := storage.NewDiskStorage(dirPath)
-	diskStorage := storage.NewMemoryStorage()
-	kvServer := NewKVServer(diskStorage)
+	//util.ClearPath(dirPath)
+	// storage := storage.NewDiskStorage(dirPath)
+	storage := storage.NewMemoryStorage()
+	kvServer := NewKVServer(storage)
 	session := kvServer.Session()
 	resultSet := session.Execute("create table test(id int, name varchar);")
 	resultSet.ToString()
 }
 
 func TestKVService_ExecuteInsertTable(t *testing.T) {
-	util.ClearPath(dirPath)
-	diskStorage := storage.NewDiskStorage(dirPath)
-	kvServer := NewKVServer(diskStorage)
+	//util.ClearPath(dirPath)
+	//storage := storage.NewDiskStorage(dirPath)
+	storage := storage.NewMemoryStorage()
+	kvServer := NewKVServer(storage)
 	session := kvServer.Session()
 	session.Execute("create table test(id int, name varchar);")
 	session.Execute("insert into test (id,name) values(1, 'test');")
@@ -30,9 +30,10 @@ func TestKVService_ExecuteInsertTable(t *testing.T) {
 }
 
 func TestKVService_ExecuteScan(t *testing.T) {
-	util.ClearPath(dirPath)
-	diskStorage := storage.NewDiskStorage(dirPath)
-	kvServer := NewKVServer(diskStorage)
+	//util.ClearPath(dirPath)
+	//storage := storage.NewDiskStorage(dirPath)
+	storage := storage.NewMemoryStorage()
+	kvServer := NewKVServer(storage)
 	session := kvServer.Session()
 	session.Execute("create table test(id int, name varchar);")
 	session.Execute("insert into test(id,name) values(1, 'test');")
