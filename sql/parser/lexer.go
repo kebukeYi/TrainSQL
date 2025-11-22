@@ -268,6 +268,15 @@ func (le *Lexer) scanSymbol() *Token {
 		case '/':
 			token.Type = SLASH
 			token.Value = Slash
+		case '=':
+			token.Type = EQUAL
+			token.Value = Equal
+		case '>':
+			token.Type = GREATERTHAN
+			token.Value = GreaterThan
+		case '<':
+			token.Type = LESSTHAN
+			token.Value = LessThan
 		default:
 			return nil
 		}

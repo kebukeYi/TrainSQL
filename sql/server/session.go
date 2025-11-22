@@ -16,14 +16,16 @@ func (s *Session) Execute(sqlStr string) types.ResultSet {
 	statement := newParser.Parse()
 	if statement != nil {
 		service := s.Server.Begin()
-		plan := plan.Plan{}
-		plan.BuildNode(statement)
-		e := plan.GetExecutor()
-		resultSet := service.execute(e)
+		plan := plan.Plan{
+			Service: service,
+		}
+		node := plan.BuildNode(statement)
+		e := plan.BuildExecutor(node)
+		resultSet := e.Execute(service)
 		if resultSet != nil {
-			service.commit()
+			service.Commit()
 		} else {
-			service.rollback()
+			service.Rollback()
 		}
 		return resultSet
 	} else {

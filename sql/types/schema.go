@@ -1,8 +1,66 @@
 package types
 
+import (
+	"fmt"
+	"github.com/kebukeYi/TrainSQL/sql/util"
+)
+
 type Table struct {
 	Name    string
 	Columns []ColumnV
+}
+
+func (t *Table) Validate() {
+	if t.Columns == nil || len(t.Columns) == 0 {
+		util.Error("[Table] %s columns is nil", t.Name)
+	}
+	// 校验是否有主键
+	count := 0
+	for _, column := range t.Columns {
+		if column.PrimaryKey {
+			count++
+		}
+		if column.Nullable && column.Nullable {
+			util.Error("[Table] %s column %s can not be nullable", t.Name, column.Name)
+		}
+		if column.DefaultValue != nil {
+			if column.DefaultValue.DateType() != column.DataType {
+				util.Error("[Table] %s column %s default value type not match", t.Name, column.Name)
+			}
+		}
+	}
+	if count != 1 {
+		util.Error("[Table] %s has no primary key", t.Name)
+	}
+}
+
+func (t *Table) GetPrimaryKeyOfValue(row Row) Value {
+	for i, column := range t.Columns {
+		if column.PrimaryKey {
+			return row[i]
+		}
+	}
+	return nil
+}
+
+func (t *Table) GetColPos(colName string) int32 {
+	for i, column := range t.Columns {
+		if column.Name == colName {
+			return int32(i)
+		}
+	}
+	util.Error("[Table] %s has no column %s", t.Name, colName)
+	return -1
+}
+
+func (t *Table) ToString() string {
+	str := fmt.Sprintf("TABLE_NAME: %s\n", t.Name)
+	str += "COLUMNS: {"
+	for _, column := range t.Columns {
+		str += column.ToString()
+		str += "\n"
+	}
+	return str + "}"
 }
 
 type ColumnV struct {
@@ -10,4 +68,20 @@ type ColumnV struct {
 	DataType     DataType
 	Nullable     bool
 	DefaultValue Value
+	PrimaryKey   bool
+	IsIndex      bool
+}
+
+func (c *ColumnV) ToString() string {
+	col_desc := fmt.Sprintf("%s %s", c.Name, c.DataType)
+	if c.PrimaryKey {
+		col_desc += " PRIMARY KEY"
+	}
+	if !c.Nullable && !c.PrimaryKey {
+		col_desc += " NOT NULL"
+	}
+	if c.DefaultValue != nil {
+		col_desc += " DEFAULT " + string(c.DefaultValue.Bytes())
+	}
+	return col_desc
 }

@@ -10,14 +10,17 @@ import (
 )
 
 type Service interface {
-	createRow(tableName string, row types.Row)
-	scanTable(tableName string) []types.Row
-	createTable(table *types.Table)
-	getTable(tableName string) *types.Table
-	mustGetTable(tableName string) *types.Table
-	execute(e executor.Executor) types.ResultSet
-	commit()
-	rollback()
+	CreateRow(tableName string, row types.Row)
+	ScanTable(tableName string) []types.Row
+	CreateTable(table *types.Table)
+	DropTable(tableName string)
+	GetTable(tableName string) *types.Table
+	MustGetTable(tableName string) *types.Table
+	Execute(e executor.Executor) types.ResultSet
+	Commit()
+	Rollback()
+	UpdateRow(table *types.Table, value types.Value, row []types.Value)
+	DeleteRow(table *types.Table, value types.Value)
 }
 
 type KVService struct {
@@ -34,30 +37,19 @@ func NewKVService(t *storage.Transaction) *KVService {
 		txn: t,
 	}
 }
-func (s *KVService) execute(e executor.Executor) types.ResultSet {
-	switch e.(type) {
-	case *executor.CreatTableExecutor:
-		return s.ExecuteCreateTable(e)
-	case *executor.InsertTableExecutor:
-		return s.ExecuteInsertTable(e)
-	case *executor.ScanTableExecutor:
-		return s.ExecuteScan(e)
-	}
-	return nil
-}
-func (s *KVService) createRow(tableName string, row types.Row) {
-	table := s.mustGetTable(tableName)
+func (s *KVService) CreateRow(tableName string, row types.Row) {
+	table := s.MustGetTable(tableName)
 	for i, column := range table.Columns {
 		dateType := row[i].DateType()
 		if dateType == types.Null {
 			if column.Nullable == true {
 				continue
 			} else {
-				util.Error("[createRow] column %s can not be null", column.Name)
+				util.Error("[CreateRow] column %s can not be null", column.Name)
 			}
 		}
 		if dateType != column.DataType {
-			util.Error("[createRow] column type not match")
+			util.Error("[CreateRow] column type not match")
 		}
 	}
 	rowKey := GetRowKey(tableName, row[0])
@@ -68,7 +60,7 @@ func (s *KVService) createRow(tableName string, row types.Row) {
 	}
 	s.txn.Set(rowKey, buffer.Bytes())
 }
-func (s *KVService) scanTable(tableName string) []types.Row {
+func (s *KVService) ScanTable(tableName string) []types.Row {
 	// prefixRowKey: Row_user_*
 	prefixRowKey := GetPrefixRowKey(tableName)
 	resultPairs := s.txn.ScanPrefix(prefixRowKey, true)
@@ -83,12 +75,12 @@ func (s *KVService) scanTable(tableName string) []types.Row {
 	}
 	return rows
 }
-func (s *KVService) createTable(table *types.Table) {
-	if getTable := s.getTable(table.Name); getTable != nil {
+func (s *KVService) CreateTable(table *types.Table) {
+	if getTable := s.GetTable(table.Name); getTable != nil {
 		util.Error("table already exists")
 	}
 	if table.Columns == nil {
-		util.Error("[createTable] table columns is nil")
+		util.Error("[CreateTable] table columns is nil")
 	}
 	var buffer bytes.Buffer
 	encoder := gob.NewEncoder(&buffer)
@@ -98,7 +90,9 @@ func (s *KVService) createTable(table *types.Table) {
 	tableNameKey := GetTableNameKey(table.Name)
 	s.txn.Set(tableNameKey, buffer.Bytes())
 }
-func (s *KVService) getTable(tableName string) *types.Table {
+func (s *KVService) DropTable(tableName string) {
+}
+func (s *KVService) GetTable(tableName string) *types.Table {
 	tableNameKey := GetTableNameKey(tableName)
 	tableBytes := s.txn.Get(tableNameKey)
 	if tableBytes == nil {
@@ -113,16 +107,16 @@ func (s *KVService) getTable(tableName string) *types.Table {
 	}
 	return &table
 }
-func (s *KVService) mustGetTable(tableName string) *types.Table {
-	table := s.getTable(tableName)
+func (s *KVService) MustGetTable(tableName string) *types.Table {
+	table := s.GetTable(tableName)
 	if table == nil {
 		util.Error("table not exists")
 	}
 	return table
 }
-func (s *KVService) commit() {
+func (s *KVService) Commit() {
 	s.txn.Commit()
 }
-func (s *KVService) rollback() {
+func (s *KVService) Rollback() {
 	s.txn.Rollback()
 }

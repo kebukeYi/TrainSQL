@@ -1,7 +1,10 @@
 package executor
 
 import (
+	"fmt"
+	"github.com/kebukeYi/TrainSQL/sql/server"
 	"github.com/kebukeYi/TrainSQL/sql/types"
+	"github.com/kebukeYi/TrainSQL/sql/util"
 )
 
 type InsertTableExecutor struct {
@@ -18,5 +21,159 @@ func NewInsertTableExecutor(tableName string, columns []string, values [][]*type
 	}
 }
 
-func (i *InsertTableExecutor) Name() {
+// 列对齐自动填充;
+// tbl:
+// insert into tbl values(1, 2, 3);
+// a       b       c      d
+// 1       2       3     无值   (default 填充)
+func padRow(table *types.Table, row types.Row) types.Row {
+	for id, column := range table.Columns {
+		if id >= len(row) {
+			if column.DefaultValue == nil {
+				util.Error("[padRow] Column %s has no default value;\n", column.Name)
+			} else {
+				row = append(row, column.DefaultValue)
+			}
+		}
+	}
+	return row
+}
+
+// tbl:
+// insert into tbl(d, c) values(1, 2);
+//
+//	a          b       c          d
+//
+// default   default   2          1
+func makeRow(table *types.Table, columns []string, row types.Row) types.Row {
+	// 判断列数是否和value数一致
+	if len(columns) != len(row) {
+		util.Error("[makeRow] Columns and values count not match;\n")
+	}
+	input := make(map[string]types.Value)
+	for i, column := range columns {
+		input[column] = row[i]
+	}
+	var newRow []types.Value
+	for _, column := range table.Columns {
+		if input[column.Name] == nil {
+			if column.DefaultValue == nil {
+				util.Error("[makeRow] Column %s has no default value;\n", column.Name)
+			} else {
+				input[column.Name] = column.DefaultValue
+				newRow = append(row, input[column.Name])
+			}
+		} else {
+			newRow = append(row, input[column.Name])
+		}
+	}
+	return newRow
+}
+
+func (i *InsertTableExecutor) Execute(s server.Service) types.ResultSet {
+	fmt.Println("ExecuteInsertTable")
+	count := 0
+	// 先取出表信息
+	mustGetTable := s.MustGetTable(i.TableName)
+	// 每一行数据
+	for _, expressions := range i.Values {
+		var row []types.Value
+		for _, expression := range expressions {
+			row = append(row, expression.ConstVal)
+		}
+		// 如果没有指定插入的列;
+		if i.Columns == nil {
+			padRow(mustGetTable, row)
+		} else {
+			// 指定了插入的列，需要对 value 信息进行整理
+			makeRow(mustGetTable, i.Columns, row)
+		}
+		s.CreateRow(i.TableName, row)
+		count++
+	}
+	return &types.InsertTableResult{
+		Count: count,
+	}
+}
+
+type UpdateTableExecutor struct {
+	TableName string
+	Source    Executor
+	columns   map[string]*types.Expression
+}
+
+func NewUpdateTableExecutor(tableName string, source Executor, columns map[string]*types.Expression) *UpdateTableExecutor {
+	return &UpdateTableExecutor{
+		TableName: tableName,
+		Source:    source,
+		columns:   columns,
+	}
+}
+func (u *UpdateTableExecutor) Execute(s server.Service) types.ResultSet {
+	update := 0
+	var result types.ResultSet
+	result = u.Source.Execute(s)
+	switch result.(type) {
+	case *types.ScanTableResult:
+		table := s.MustGetTable(u.TableName)
+		selectTableResult := result.(*types.ScanTableResult)
+		// 遍历所有需要更新的行;
+		for _, row := range selectTableResult.Rows {
+			// update user set name='kk' where id = 1; // 可能存在多行需要更新;
+			pKValue := table.GetPrimaryKeyOfValue(row)
+			// 不清楚要具体更新哪些列,因此需要全部判断;
+			for i, column := range selectTableResult.Columns {
+				if expr, ok := u.columns[column]; ok {
+					// 只更新特定列的值;
+					row[i] = expr.ConstVal
+				}
+			}
+			// 执行更新操作;
+			// 1.如果有主键更新，删除原来的数据，新增一条新的数据;
+			// 2.否则就 table_name + primary key => 更新数据
+			// 所有行的存储结构是: tableName_primaryKey_
+			s.UpdateRow(table, pKValue, row)
+			update++
+		}
+	default:
+		util.Error("[UpdateTableExecutor] Unsupported result type: %T\n", result)
+	}
+	return &types.UpdateTableResult{
+		Count: update,
+	}
+}
+
+type DeleteTableExecutor struct {
+	TableName string
+	Source    Executor
+}
+
+func NewDeleteTableExecutor(tableName string, source Executor) *DeleteTableExecutor {
+	return &DeleteTableExecutor{
+		TableName: tableName,
+		Source:    source,
+	}
+}
+func (d *DeleteTableExecutor) Execute(s server.Service) types.ResultSet {
+	count := 0
+	var result types.ResultSet
+	result = d.Source.Execute(s)
+	// 执行扫描操作，获取到扫描的结果;
+	switch result.(type) {
+	case *types.ScanTableResult:
+		table := s.MustGetTable(d.TableName)
+		selectTableResult := result.(*types.ScanTableResult)
+		// 遍历所有需要更新的行;
+		for _, row := range selectTableResult.Rows {
+			// update user set name='kk' where id = 1; // 可能存在多行需要更新;
+			pKValue := table.GetPrimaryKeyOfValue(row)
+			s.DeleteRow(table, pKValue)
+			count++
+		}
+	default:
+		util.Error("[UpdateTableExecutor] Unsupported result type: %T\n", result)
+	}
+	return &types.DeleteTableResult{
+		Count: count,
+	}
 }

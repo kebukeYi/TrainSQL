@@ -2,11 +2,42 @@ package parser
 
 import (
 	"fmt"
+	"github.com/kebukeYi/TrainSQL/sql/plan"
+	"github.com/kebukeYi/TrainSQL/sql/server"
 	"github.com/kebukeYi/TrainSQL/sql/types"
 )
 
+type FromItem interface {
+	Item()
+}
+type TableItem struct {
+	TableName string
+}
+
+func (t *TableItem) Item() {
+}
+
+type JoinType int
+
+var (
+	CrossType JoinType = 1
+	InnerType JoinType = 2
+	LeftType  JoinType = 3
+	RightType JoinType = 4
+)
+
+type JoinItem struct {
+	Left      FromItem
+	Right     FromItem
+	JoinType  JoinType
+	Predicate *types.Expression
+}
+
+func (j *JoinItem) Item() {
+}
+
 type Statement interface {
-	Execute()
+	Execute(server.Service) types.ResultSet
 }
 
 type CreatTableData struct {
@@ -14,7 +45,7 @@ type CreatTableData struct {
 	Columns   []*types.Column
 }
 
-func (c *CreatTableData) Execute() {
+func (c *CreatTableData) Execute(server.Service) types.ResultSet {
 	fmt.Println("create table", c.TableName)
 	for _, column := range c.Columns {
 		fmt.Printf("column: %s, %d, %v ", column.Name, column.DateType, column.Nullable)
@@ -22,7 +53,7 @@ func (c *CreatTableData) Execute() {
 			fmt.Println()
 			continue
 		}
-		con := column.DefaultValue.V
+		con := column.DefaultValue.ConstVal
 		switch con.(type) {
 		case *types.ConstInt:
 			fmt.Print("default value:", con.(*types.ConstInt).Value)
@@ -37,13 +68,15 @@ func (c *CreatTableData) Execute() {
 		}
 		fmt.Println()
 	}
+	return nil
 }
 
 type DropTableData struct {
-	Table string
+	TableName string
 }
 
-func (d *DropTableData) Execute() {
+func (d *DropTableData) Execute(server.Service) types.ResultSet {
+	return nil
 }
 
 type InsertData struct {
@@ -52,14 +85,14 @@ type InsertData struct {
 	Values    [][]*types.Expression
 }
 
-func (i *InsertData) Execute() {
+func (i *InsertData) Execute(server.Service) types.ResultSet {
 	fmt.Println(" insert into ", i.TableName)
 	fmt.Println(i.Columns)
 	// 每行
 	for _, value := range i.Values {
 		for _, expression := range value {
 			//fmt.Printf("%s   ", i.Columns[id])
-			con := expression.V
+			con := expression.ConstVal
 			switch con.(type) {
 			case *types.ConstInt:
 				fmt.Printf("%d   ", con.(*types.ConstInt).Value)
@@ -75,28 +108,42 @@ func (i *InsertData) Execute() {
 		}
 		fmt.Println()
 	}
+	return nil
 }
 
 type DeleteData struct {
-	TableName string
+	TableName   string
+	WhereClause *types.Expression
 }
 
-func (d *DeleteData) Execute() {
+func (d *DeleteData) Execute(server.Service) types.ResultSet {
+	return nil
 }
 
 type UpdateData struct {
-	TableName string
+	TableName   string
+	Columns     map[string]*types.Expression
+	WhereClause *types.Expression
 }
 
-func (u *UpdateData) Execute() {
+func (u *UpdateData) Execute(server.Service) types.ResultSet {
+	return nil
 }
 
 type SelectData struct {
-	TableName string
+	SelectCol   map[*types.Expression]string
+	From        FromItem
+	WhereClause *types.Expression
+	GroupBy     *types.Expression
+	Having      *types.Expression
+	OrderBy     map[string]plan.OrderDirection
+	Limit       *types.Expression
+	Offset      *types.Expression
 }
 
-func (s *SelectData) Execute() {
-	fmt.Println("select from", s.TableName)
+func (s *SelectData) Execute(server.Service) types.ResultSet {
+	fmt.Println("select from", s.From.(*TableItem).TableName)
+	return nil
 }
 
 type CreateIndexData struct {
@@ -105,13 +152,35 @@ type CreateIndexData struct {
 	Columns   []*types.Column
 }
 
-func (c *CreateIndexData) Execute() {
+func (c *CreateIndexData) Execute(server.Service) types.ResultSet {
+	return nil
 }
 
-type DropIndexData struct {
-	TableName string
-	IndexName string
+type BeginData struct {
 }
 
-func (d *DropIndexData) Execute() {
+func (b *BeginData) Execute(server.Service) types.ResultSet {
+	return nil
+}
+
+type CommitData struct {
+}
+
+func (c *CommitData) Execute(server.Service) types.ResultSet {
+	return nil
+}
+
+type RollbackData struct {
+}
+
+func (r *RollbackData) Execute(server.Service) types.ResultSet {
+	return nil
+}
+
+type ExplainData struct {
+	Statement Statement
+}
+
+func (e *ExplainData) Execute(server.Service) types.ResultSet {
+	return nil
 }
