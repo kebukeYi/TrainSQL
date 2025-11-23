@@ -53,6 +53,10 @@ type Transaction struct {
 	transactionState *TransactionState
 }
 
+func (t *Transaction) Version() Version {
+	return t.transactionState.Version
+}
+
 func NewTransaction(storage Storage) *Transaction {
 	return &Transaction{
 		storage: storage,
@@ -241,7 +245,7 @@ func (t *Transaction) ScanPrefix(keyPrefix []byte, needValue bool) []ResultPair 
 		}
 		version := SplitKeyVersion(pair.Key)
 		if t.transactionState.isVisible(version) {
-			// pair.Key: KeyVersion_key1_version(8字节)
+			// pair.Key: KeyVersion_Row_user_version(8字节)
 			// rawKey: key1
 			rawKey := GetRawKeyFromKeyVersion(pair.Key)
 			r := ResultPair{

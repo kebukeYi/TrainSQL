@@ -1,4 +1,4 @@
-package parser
+package sql
 
 import (
 	"bufio"
@@ -53,7 +53,7 @@ func (le *Lexer) unReadCh() error {
 	return nil
 }
 
-// 消费掉空白符;
+// 将 sql 中的空格字符,一一取出,随后丢弃掉;
 func (le *Lexer) eraseWithSpace() error {
 	if _, err := le.nextWhile(func(r byte) bool {
 		return r == ' '
@@ -63,7 +63,7 @@ func (le *Lexer) eraseWithSpace() error {
 	return nil
 }
 
-// 如果当前字节满足fc(), 则消费并返回当前字节;
+// 如果当前字符满足fc(), 则消费并返回当前字符;
 func (le *Lexer) nextIf(fc func(r byte) bool) ([]byte, error) {
 	if readCh, err := le.peek(1); err != nil {
 		// 未知错误
@@ -78,7 +78,7 @@ func (le *Lexer) nextIf(fc func(r byte) bool) ([]byte, error) {
 	return nil, nil
 }
 
-// 判断当前字符是否满足fc(), 如果满足则消费保存, 并判断下一个字节;不满足则退出;
+// 判断当前字符是否满足fc(), 如果满足则消费保存, 并读取下一个,判断下一个字符是否满足;不满足则返回;
 func (le *Lexer) nextWhile(fc func(r byte) bool) ([]byte, error) {
 	var result []byte
 	for {
@@ -100,7 +100,6 @@ func (le *Lexer) nextWhile(fc func(r byte) bool) ([]byte, error) {
 	}
 	return result, nil
 }
-
 func (le *Lexer) nextIfToken(fc func(r byte) *Token) *Token {
 	if peek, _ := le.peek(1); peek != nil {
 		token := fc(peek[0])

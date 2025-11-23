@@ -1,8 +1,7 @@
-package executor
+package sql
 
 import (
 	"fmt"
-	"github.com/kebukeYi/TrainSQL/sql/server"
 	"github.com/kebukeYi/TrainSQL/sql/types"
 )
 
@@ -15,7 +14,7 @@ func NewCreateTableExecutor(schema *types.Table) *CreatTableExecutor {
 		Schema: schema,
 	}
 }
-func (c *CreatTableExecutor) Execute(s server.Service) types.ResultSet {
+func (c *CreatTableExecutor) Execute(s Service) types.ResultSet {
 	fmt.Println("ExecuteCreateTable")
 	tableName := c.Schema.Name
 	s.CreateTable(c.Schema)
@@ -31,7 +30,7 @@ func NewDropTableExecutor(tableName string) *DropTableExecutor {
 		TableName: tableName,
 	}
 }
-func (d *DropTableExecutor) Execute(s server.Service) types.ResultSet {
+func (d *DropTableExecutor) Execute(s Service) types.ResultSet {
 	fmt.Println("ExecuteDropTable")
 	tableName := d.TableName
 	s.DropTable(tableName)

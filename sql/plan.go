@@ -1,9 +1,6 @@
-package plan
+package sql
 
 import (
-	"github.com/kebukeYi/TrainSQL/sql/parser"
-	"github.com/kebukeYi/TrainSQL/sql/server"
-	"github.com/kebukeYi/TrainSQL/sql/server/executor"
 	"github.com/kebukeYi/TrainSQL/sql/types"
 	"github.com/kebukeYi/TrainSQL/sql/util"
 )
@@ -64,8 +61,8 @@ func (d *DeleteNode) node() {
 type OrderDirection int
 
 var (
-	Asc  OrderDirection = 1
-	Desc OrderDirection = 2
+	OrderAsc  OrderDirection = 1
+	OrderDesc OrderDirection = 2
 )
 
 type OrderNode struct {
@@ -153,16 +150,29 @@ func (p *PrimaryKeyScanNode) node() {
 }
 
 type Plan struct {
-	// node Node
-	Service server.Service
+	node    Node
+	Service Service
+	ast     Statement
 }
 
-func (p *Plan) BuildNode(ast parser.Statement) Node {
+func NewPlan(ast Statement, service Service) *Plan {
+	plan := &Plan{Service: service}
+	plan.ast = ast
+	return plan
+}
+
+func (p *Plan) Execute() types.ResultSet {
+	p.node = p.BuildNode(p.ast)
+	executor := p.BuildExecutor(p.node)
+	resultSet := executor.Execute(p.Service)
+	return resultSet
+}
+func (p *Plan) BuildNode(ast Statement) Node {
 	var node Node
 	switch ast.(type) {
-	case *parser.CreatTableData:
+	case *CreatTableData:
 		columnVs := make([]types.ColumnV, 0)
-		columns := ast.(*parser.CreatTableData).Columns
+		columns := ast.(*CreatTableData).Columns
 		for _, column := range columns {
 			columnV := types.ColumnV{
 				Name:     column.Name,
@@ -178,23 +188,23 @@ func (p *Plan) BuildNode(ast parser.Statement) Node {
 		}
 		node = &CreateTableNode{
 			Schema: &types.Table{
-				Name:    ast.(*parser.CreatTableData).TableName,
+				Name:    ast.(*CreatTableData).TableName,
 				Columns: columnVs,
 			},
 		}
-	case *parser.DropTableData:
+	case *DropTableData:
 		node = &DropTableNode{
-			TableName: ast.(*parser.DropTableData).TableName,
+			TableName: ast.(*DropTableData).TableName,
 		}
-	case *parser.InsertData:
+	case *InsertData:
 		node = &InsertNode{
-			TableName: ast.(*parser.InsertData).TableName,
-			Columns:   ast.(*parser.InsertData).Columns,
-			Values:    ast.(*parser.InsertData).Values,
+			TableName: ast.(*InsertData).TableName,
+			Columns:   ast.(*InsertData).Columns,
+			Values:    ast.(*InsertData).Values,
 		}
-	case *parser.SelectData:
-		selectData := ast.(*parser.SelectData)
-		selectNode := p.BuildFromItem(selectData.From, selectData.WhereClause)
+	case *SelectData:
+		selectData := ast.(*SelectData)
+		node = p.BuildFromItem(selectData.From, selectData.WhereClause)
 		hasAgg := false
 		// aggregate、group by
 		if selectData.SelectCol != nil || len(selectData.SelectCol) != 0 {
@@ -210,7 +220,7 @@ func (p *Plan) BuildNode(ast parser.Statement) Node {
 			}
 			if hasAgg {
 				node = &AggregateNode{
-					Source:  selectNode,
+					Source:  node,
 					Exprs:   selectData.SelectCol,
 					GroupBy: selectData.GroupBy,
 				}
@@ -222,13 +232,12 @@ func (p *Plan) BuildNode(ast parser.Statement) Node {
 				Predicate: selectData.Having,
 			}
 		}
-		if selectData.OrderBy != nil {
+		if selectData.OrderBy != nil || len(selectData.OrderBy) > 0 {
 			node = &OrderNode{
 				Source:  node,
 				OrderBy: selectData.OrderBy,
 			}
 		}
-
 		if selectData.Offset != nil {
 			constInt, ok := selectData.Offset.ConstVal.(*types.ConstInt)
 			if !ok {
@@ -239,7 +248,6 @@ func (p *Plan) BuildNode(ast parser.Statement) Node {
 				Offset: int(constInt.Value),
 			}
 		}
-
 		if selectData.Limit != nil {
 			constInt, ok := selectData.Limit.ConstVal.(*types.ConstInt)
 			if !ok {
@@ -256,48 +264,47 @@ func (p *Plan) BuildNode(ast parser.Statement) Node {
 				Exprs:  selectData.SelectCol,
 			}
 		}
-	case *parser.UpdateData:
+	case *UpdateData:
 		node = &UpdateNode{
-			TableName: ast.(*parser.UpdateData).TableName,
-			Source:    p.buildScan(ast.(*parser.UpdateData).TableName, ast.(*parser.UpdateData).WhereClause),
-			columns:   ast.(*parser.UpdateData).Columns,
+			TableName: ast.(*UpdateData).TableName,
+			Source:    p.buildScan(ast.(*UpdateData).TableName, ast.(*UpdateData).WhereClause),
+			columns:   ast.(*UpdateData).Columns,
 		}
-
-	case *parser.DeleteData:
+	case *DeleteData:
 		node = &DeleteNode{
-			TableName: ast.(*parser.DeleteData).TableName,
-			Source:    p.buildScan(ast.(*parser.DeleteData).TableName, ast.(*parser.DeleteData).WhereClause),
+			TableName: ast.(*DeleteData).TableName,
+			Source:    p.buildScan(ast.(*DeleteData).TableName, ast.(*DeleteData).WhereClause),
 		}
-	case *parser.BeginData:
+	case *BeginData:
 		util.Error("not support begin command")
-	case *parser.CommitData:
+	case *CommitData:
 		util.Error("not support commit command")
-	case *parser.RollbackData:
+	case *RollbackData:
 		util.Error("not support rollback command")
-	case *parser.ExplainData:
+	case *ExplainData:
 		util.Error("not support explain command")
 	default:
 		panic("not support ast type")
 	}
 	return node
 }
-func (p *Plan) BuildFromItem(item parser.FromItem, filter *types.Expression) Node {
+func (p *Plan) BuildFromItem(item FromItem, filter *types.Expression) Node {
 	switch item.(type) {
-	case *parser.TableItem:
-		return p.buildScan(item.(*parser.TableItem).TableName, filter)
+	case *TableItem:
+		return p.buildScan(item.(*TableItem).TableName, filter)
 
-	case *parser.JoinItem:
-		joinItem := item.(*parser.JoinItem)
-		if joinItem.JoinType == parser.RightType {
+	case *JoinItem:
+		joinItem := item.(*JoinItem)
+		if joinItem.JoinType == RightType {
 			joinItem.Left, joinItem.Right = joinItem.Right, joinItem.Left
 		}
 		outer := true
-		if joinItem.JoinType == parser.CrossType ||
-			joinItem.JoinType == parser.InnerType {
+		if joinItem.JoinType == CrossType ||
+			joinItem.JoinType == InnerType {
 			outer = false
 		}
 
-		if joinItem.JoinType == parser.CrossType {
+		if joinItem.JoinType == CrossType {
 			return &NestedLoopJoinNode{
 				Left:      p.BuildFromItem(joinItem.Left, joinItem.Predicate),
 				Right:     p.BuildFromItem(joinItem.Right, joinItem.Predicate),
@@ -315,52 +322,52 @@ func (p *Plan) BuildFromItem(item parser.FromItem, filter *types.Expression) Nod
 	}
 	return nil
 }
-func (p *Plan) BuildExecutor(node Node) executor.Executor {
+func (p *Plan) BuildExecutor(node Node) Executor {
 	switch node.(type) {
 	case *CreateTableNode:
-		return executor.NewCreateTableExecutor(node.(*CreateTableNode).Schema)
+		return NewCreateTableExecutor(node.(*CreateTableNode).Schema)
 	case *DropTableNode:
-		return executor.NewDropTableExecutor(node.(*DropTableNode).TableName)
+		return NewDropTableExecutor(node.(*DropTableNode).TableName)
 	case *InsertNode:
-		return executor.NewInsertTableExecutor(node.(*InsertNode).TableName,
+		return NewInsertTableExecutor(node.(*InsertNode).TableName,
 			node.(*InsertNode).Columns, node.(*InsertNode).Values)
 	case *ScanNode:
-		return executor.NewScanTableExecutor(node.(*ScanNode).TableName, node.(*ScanNode).Filter)
+		return NewScanTableExecutor(node.(*ScanNode).TableName, node.(*ScanNode).Filter)
 	case *UpdateNode:
 		updateNode := node.(*UpdateNode)
 		sourceExecutor := p.BuildExecutor(updateNode.Source)
-		return executor.NewUpdateTableExecutor(updateNode.TableName, sourceExecutor, updateNode.columns)
+		return NewUpdateTableExecutor(updateNode.TableName, sourceExecutor, updateNode.columns)
 	case *DeleteNode:
-		return executor.NewDeleteTableExecutor(node.(*DeleteNode).TableName, p.BuildExecutor(node.(*DeleteNode).Source))
+		return NewDeleteTableExecutor(node.(*DeleteNode).TableName, p.BuildExecutor(node.(*DeleteNode).Source))
 	case *OrderNode:
 		orderNode := node.(*OrderNode)
 		source := p.BuildExecutor(orderNode.Source)
-		return executor.NewOrderExecutor(source, node.(*OrderNode).OrderBy)
+		return NewOrderExecutor(source, node.(*OrderNode).OrderBy)
 	case *LimitNode:
 		limitNode := node.(*LimitNode)
 		source := p.BuildExecutor(limitNode.Source)
-		return executor.NewLimitExecutor(source, node.(*LimitNode).Limit)
+		return NewLimitExecutor(source, node.(*LimitNode).Limit)
 	case *OffsetNode:
 		offsetNode := node.(*OffsetNode)
 		source := p.BuildExecutor(offsetNode.Source)
-		return executor.NewOffsetExecutor(source, node.(*OffsetNode).Offset)
+		return NewOffsetExecutor(source, node.(*OffsetNode).Offset)
 	case *ProjectNode:
 		projectNode := node.(*ProjectNode)
 		source := p.BuildExecutor(projectNode.Source)
-		return executor.NewProjectExecutor(source, projectNode.Exprs)
+		return NewProjectExecutor(source, projectNode.Exprs)
 	case *NestedLoopJoinNode:
-		return executor.NewNestedLoopJoinExecutor(p.BuildExecutor(node.(*NestedLoopJoinNode).Left),
+		return NewNestedLoopJoinExecutor(p.BuildExecutor(node.(*NestedLoopJoinNode).Left),
 			p.BuildExecutor(node.(*NestedLoopJoinNode).Right), node.(*NestedLoopJoinNode).Predicate, node.(*NestedLoopJoinNode).Outer)
 	case *AggregateNode:
-		return executor.NewAggregateExecutor(p.BuildExecutor(node.(*AggregateNode).Source), node.(*AggregateNode).Exprs, node.(*AggregateNode).GroupBy)
+		return NewAggregateExecutor(p.BuildExecutor(node.(*AggregateNode).Source), node.(*AggregateNode).Exprs, node.(*AggregateNode).GroupBy)
 	case *FilterNode:
-		return executor.NewFilterExecutor(p.BuildExecutor(node.(*FilterNode).Source), node.(*FilterNode).Predicate)
+		return NewFilterExecutor(p.BuildExecutor(node.(*FilterNode).Source), node.(*FilterNode).Predicate)
 	case *IndexScanNode:
-		return executor.NewIndexScanExecutor(node.(*IndexScanNode).TableName, node.(*IndexScanNode).Filed, node.(*IndexScanNode).Value)
+		return NewIndexScanExecutor(node.(*IndexScanNode).TableName, node.(*IndexScanNode).Filed, node.(*IndexScanNode).Value)
 	case *PrimaryKeyScanNode:
-		return executor.NewPrimaryKeyScanExecutor(node.(*PrimaryKeyScanNode).TableName, node.(*PrimaryKeyScanNode).Value)
+		return NewPrimaryKeyScanExecutor(node.(*PrimaryKeyScanNode).TableName, node.(*PrimaryKeyScanNode).Value)
 	case *HashJoinNode:
-		return executor.NewHashJoinExecutor(p.BuildExecutor(node.(*HashJoinNode).Left),
+		return NewHashJoinExecutor(p.BuildExecutor(node.(*HashJoinNode).Left),
 			p.BuildExecutor(node.(*HashJoinNode).Right), node.(*HashJoinNode).Predicate, node.(*HashJoinNode).Outer)
 	}
 	return nil
@@ -393,7 +400,10 @@ func (p *Plan) buildScan(tableName string, whereClause *types.Expression) Node {
 			Filter:    whereClause,
 		}
 	} else {
-		return nil
+		return &ScanNode{
+			TableName: tableName,
+			Filter:    nil,
+		}
 	}
 }
 
@@ -403,6 +413,9 @@ type FilterValue struct {
 }
 
 func (p *Plan) parseScanFilter(filter *types.Expression) *FilterValue {
+	if filter == nil {
+		return nil
+	}
 	if filter.Field != "" {
 		return &FilterValue{
 			field: filter.Field,

@@ -1,4 +1,4 @@
-package server
+package sql
 
 import (
 	"github.com/kebukeYi/TrainSQL/storage"

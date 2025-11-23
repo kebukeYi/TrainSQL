@@ -1,4 +1,4 @@
-package server
+package sql
 
 import (
 	"github.com/kebukeYi/TrainSQL/storage"
@@ -13,7 +13,7 @@ func TestKVService_ExecuteCreateTable(t *testing.T) {
 	storage := storage.NewMemoryStorage()
 	kvServer := NewKVServer(storage)
 	session := kvServer.Session()
-	resultSet := session.Execute("create table test(id int, name varchar);")
+	resultSet := session.Execute("create table test(id int primary key , name varchar);")
 	resultSet.ToString()
 }
 
@@ -23,7 +23,7 @@ func TestKVService_ExecuteInsertTable(t *testing.T) {
 	storage := storage.NewMemoryStorage()
 	kvServer := NewKVServer(storage)
 	session := kvServer.Session()
-	session.Execute("create table test(id int, name varchar);")
+	session.Execute("create table test(id int primary key, name varchar);")
 	session.Execute("insert into test (id,name) values(1, 'test');")
 	resultSet := session.Execute("select * from test;")
 	resultSet.ToString()
@@ -35,7 +35,7 @@ func TestKVService_ExecuteScan(t *testing.T) {
 	storage := storage.NewMemoryStorage()
 	kvServer := NewKVServer(storage)
 	session := kvServer.Session()
-	session.Execute("create table test(id int, name varchar);")
+	session.Execute("create table test(id int primary key, name varchar);")
 	session.Execute("insert into test(id,name) values(1, 'test');")
 	session.Execute("insert into test(id,name) values(2, 'text');")
 	session.Execute("insert into test(id,name) values(3, 'hh');")

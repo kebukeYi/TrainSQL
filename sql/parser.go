@@ -1,7 +1,6 @@
-package parser
+package sql
 
 import (
-	"github.com/kebukeYi/TrainSQL/sql/plan"
 	"github.com/kebukeYi/TrainSQL/sql/types"
 	"github.com/kebukeYi/TrainSQL/sql/util"
 	"strconv"
@@ -31,9 +30,10 @@ func (p *Parser) next() *Token {
 	return p.lexer.next()
 }
 
-// 强制要求下一个 token 必须是标识符, 无论是否匹配，都会消耗一个 token;
-// 如果不是标识符，返回 Err 中止解析;
-// 搜寻表名时使用;
+// 强制要求下一个 token 必须是标识符类型;
+// 无论是否匹配, 都会消耗一个 token;
+// 如果不是标识符, 返回 Err 中止解析;
+// 解析表名时使用;
 func (p *Parser) nextIdent() string {
 	token := p.next()
 	if token == nil || token.Type != IDENT {
@@ -42,8 +42,8 @@ func (p *Parser) nextIdent() string {
 	return string(token.Value)
 }
 
-// 如果下一个 Token 是关键字类型, 则取出; 否则不取出,返回none;
-// 条件性关键字检查, 检查 字段属性中是否 含有 NULL 关键字;
+// 如果下一个 Token 是关键字类型, 则取出; 否则不取出, 返回nil;
+// 条件性关键字检查, 检查 数据库字段 的属性中是否 含有 NULL 关键字;
 func (p *Parser) nextIfKeyWord() *Token {
 	return p.nextIf(func(token *Token) bool {
 		return token.Type == KEYWORD
@@ -72,7 +72,7 @@ func (p *Parser) nextIfToken(token *Token) *Token {
 	return next
 }
 
-// 如果满足条件, 则取出当前 Token, 否则不取出, 并返回 None;
+// nextIf: 如果满足条件, 则取出当前 Token, 否则不取出, 并返回 nil;
 func (p *Parser) nextIf(fc func(*Token) bool) *Token {
 	token := p.peek()
 	if fc(token) {
@@ -121,7 +121,7 @@ func (p *Parser) parseDdl() Statement {
 	}
 	value := token.Value
 	if value == Create {
-		if token2 := p.next(); token2 == nil {
+		if token2 := p.peek(); token2 == nil {
 			panic("table Execute is not null")
 		} else {
 			if token2.Value == Table {
@@ -183,7 +183,7 @@ func (p *Parser) parseExpression() *types.Expression {
 		if p.nextIfToken(&Token{Type: OPENPAREN, Value: OpenPar}) != nil {
 			colName := p.nextIdent()
 			p.nextExpect(&Token{Type: CLOSEPAREN, Value: ClosePar})
-			return &types.Expression{Function: types.Function{L: string(token.Value), R: colName}}
+			return &types.Expression{Function: &types.Function{FuncName: string(token.Value), ColName: colName}}
 		} else {
 			return &types.Expression{Field: string(token.Value)}
 		}
@@ -228,7 +228,7 @@ func (p *Parser) parseExpression() *types.Expression {
 	return types.NewExpression(con)
 }
 
-// parseDdlColumn
+// parseDdlColumn 解析列定义;
 func (p *Parser) parseDdlColumn() *types.Column {
 	// CREATE TABLE user (id INT, name VARCHAR NOT NULL, age INT DEFAULT 0);
 	filedName := p.nextIdent()
@@ -458,11 +458,11 @@ func (p *Parser) parseHavingClause() *types.Expression {
 	return nil
 
 }
-func (p *Parser) parseOrderByClause() map[string]plan.OrderDirection {
-	orders := make(map[string]plan.OrderDirection)
+func (p *Parser) parseOrderByClause() map[string]OrderDirection {
 	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Order}); token == nil {
-		return orders
+		return nil
 	}
+	orders := make(map[string]OrderDirection)
 	p.nextExpect(&Token{Type: KEYWORD, Value: By})
 	for {
 		col := p.nextIdent()
@@ -470,11 +470,11 @@ func (p *Parser) parseOrderByClause() map[string]plan.OrderDirection {
 			return token.equal(&Token{Type: KEYWORD, Value: Asc}) || token.equal(&Token{Type: KEYWORD, Value: Desc})
 		})
 		if token != nil {
-			orders[col] = plan.Asc
+			orders[col] = OrderAsc
 			if token.equal(&Token{Type: KEYWORD, Value: Asc}) {
-				orders[col] = plan.Asc
+				orders[col] = OrderAsc
 			} else {
-				orders[col] = plan.Desc
+				orders[col] = OrderDesc
 			}
 		}
 		if token := p.nextIfToken(&Token{Type: COMMA, Value: Comma}); token != nil {
@@ -538,7 +538,7 @@ func (p *Parser) parseUpdate() Statement {
 }
 
 func (p *Parser) parseWhereClause() *types.Expression {
-	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Where}); token != nil {
+	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Where}); token == nil {
 		return nil
 	}
 	return p.parseOperationExpr()

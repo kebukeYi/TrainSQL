@@ -1,8 +1,7 @@
-package executor
+package sql
 
 import (
 	"fmt"
-	"github.com/kebukeYi/TrainSQL/sql/server"
 	"github.com/kebukeYi/TrainSQL/sql/types"
 	"github.com/kebukeYi/TrainSQL/sql/util"
 )
@@ -61,16 +60,16 @@ func makeRow(table *types.Table, columns []string, row types.Row) types.Row {
 				util.Error("[makeRow] Column %s has no default value;\n", column.Name)
 			} else {
 				input[column.Name] = column.DefaultValue
-				newRow = append(row, input[column.Name])
+				newRow = append(newRow, input[column.Name])
 			}
 		} else {
-			newRow = append(row, input[column.Name])
+			newRow = append(newRow, input[column.Name])
 		}
 	}
 	return newRow
 }
 
-func (i *InsertTableExecutor) Execute(s server.Service) types.ResultSet {
+func (i *InsertTableExecutor) Execute(s Service) types.ResultSet {
 	fmt.Println("ExecuteInsertTable")
 	count := 0
 	// 先取出表信息
@@ -78,15 +77,15 @@ func (i *InsertTableExecutor) Execute(s server.Service) types.ResultSet {
 	// 每一行数据
 	for _, expressions := range i.Values {
 		var row []types.Value
-		for _, expression := range expressions {
+		for _, expression := range expressions { // 每一行的多个列;
 			row = append(row, expression.ConstVal)
 		}
 		// 如果没有指定插入的列;
 		if i.Columns == nil {
-			padRow(mustGetTable, row)
+			row = padRow(mustGetTable, row)
 		} else {
 			// 指定了插入的列，需要对 value 信息进行整理
-			makeRow(mustGetTable, i.Columns, row)
+			row = makeRow(mustGetTable, i.Columns, row)
 		}
 		s.CreateRow(i.TableName, row)
 		count++
@@ -109,7 +108,7 @@ func NewUpdateTableExecutor(tableName string, source Executor, columns map[strin
 		columns:   columns,
 	}
 }
-func (u *UpdateTableExecutor) Execute(s server.Service) types.ResultSet {
+func (u *UpdateTableExecutor) Execute(s Service) types.ResultSet {
 	update := 0
 	var result types.ResultSet
 	result = u.Source.Execute(s)
@@ -154,7 +153,7 @@ func NewDeleteTableExecutor(tableName string, source Executor) *DeleteTableExecu
 		Source:    source,
 	}
 }
-func (d *DeleteTableExecutor) Execute(s server.Service) types.ResultSet {
+func (d *DeleteTableExecutor) Execute(s Service) types.ResultSet {
 	count := 0
 	var result types.ResultSet
 	result = d.Source.Execute(s)

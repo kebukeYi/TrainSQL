@@ -1,9 +1,7 @@
-package parser
+package sql
 
 import (
 	"fmt"
-	"github.com/kebukeYi/TrainSQL/sql/plan"
-	"github.com/kebukeYi/TrainSQL/sql/server"
 	"github.com/kebukeYi/TrainSQL/sql/types"
 )
 
@@ -37,7 +35,7 @@ func (j *JoinItem) Item() {
 }
 
 type Statement interface {
-	Execute(server.Service) types.ResultSet
+	Execute(Service) types.ResultSet
 }
 
 type CreatTableData struct {
@@ -45,7 +43,7 @@ type CreatTableData struct {
 	Columns   []*types.Column
 }
 
-func (c *CreatTableData) Execute(server.Service) types.ResultSet {
+func (c *CreatTableData) Execute(Service) types.ResultSet {
 	fmt.Println("create table", c.TableName)
 	for _, column := range c.Columns {
 		fmt.Printf("column: %s, %d, %v ", column.Name, column.DateType, column.Nullable)
@@ -75,7 +73,7 @@ type DropTableData struct {
 	TableName string
 }
 
-func (d *DropTableData) Execute(server.Service) types.ResultSet {
+func (d *DropTableData) Execute(Service) types.ResultSet {
 	return nil
 }
 
@@ -85,7 +83,7 @@ type InsertData struct {
 	Values    [][]*types.Expression
 }
 
-func (i *InsertData) Execute(server.Service) types.ResultSet {
+func (i *InsertData) Execute(Service) types.ResultSet {
 	fmt.Println(" insert into ", i.TableName)
 	fmt.Println(i.Columns)
 	// 每行
@@ -116,7 +114,7 @@ type DeleteData struct {
 	WhereClause *types.Expression
 }
 
-func (d *DeleteData) Execute(server.Service) types.ResultSet {
+func (d *DeleteData) Execute(Service) types.ResultSet {
 	return nil
 }
 
@@ -126,7 +124,7 @@ type UpdateData struct {
 	WhereClause *types.Expression
 }
 
-func (u *UpdateData) Execute(server.Service) types.ResultSet {
+func (u *UpdateData) Execute(Service) types.ResultSet {
 	return nil
 }
 
@@ -136,12 +134,12 @@ type SelectData struct {
 	WhereClause *types.Expression
 	GroupBy     *types.Expression
 	Having      *types.Expression
-	OrderBy     map[string]plan.OrderDirection
+	OrderBy     map[string]OrderDirection
 	Limit       *types.Expression
 	Offset      *types.Expression
 }
 
-func (s *SelectData) Execute(server.Service) types.ResultSet {
+func (s *SelectData) Execute(Service) types.ResultSet {
 	fmt.Println("select from", s.From.(*TableItem).TableName)
 	return nil
 }
@@ -152,28 +150,28 @@ type CreateIndexData struct {
 	Columns   []*types.Column
 }
 
-func (c *CreateIndexData) Execute(server.Service) types.ResultSet {
+func (c *CreateIndexData) Execute(Service) types.ResultSet {
 	return nil
 }
 
 type BeginData struct {
 }
 
-func (b *BeginData) Execute(server.Service) types.ResultSet {
+func (b *BeginData) Execute(Service) types.ResultSet {
 	return nil
 }
 
 type CommitData struct {
 }
 
-func (c *CommitData) Execute(server.Service) types.ResultSet {
+func (c *CommitData) Execute(Service) types.ResultSet {
 	return nil
 }
 
 type RollbackData struct {
 }
 
-func (r *RollbackData) Execute(server.Service) types.ResultSet {
+func (r *RollbackData) Execute(Service) types.ResultSet {
 	return nil
 }
 
@@ -181,6 +179,6 @@ type ExplainData struct {
 	Statement Statement
 }
 
-func (e *ExplainData) Execute(server.Service) types.ResultSet {
+func (e *ExplainData) Execute(Service) types.ResultSet {
 	return nil
 }

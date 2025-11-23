@@ -20,7 +20,7 @@ func (t *Table) Validate() {
 		if column.PrimaryKey {
 			count++
 		}
-		if column.Nullable && column.Nullable {
+		if column.PrimaryKey && column.Nullable {
 			util.Error("[Table] %s column %s can not be nullable", t.Name, column.Name)
 		}
 		if column.DefaultValue != nil {

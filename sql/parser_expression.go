@@ -1,4 +1,4 @@
-package parser
+package sql
 
 import "github.com/kebukeYi/TrainSQL/sql/types"
 

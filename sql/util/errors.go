@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func IsIntegerStrict(s string) bool {
@@ -25,3 +26,7 @@ var (
 	Mismatch      = errors.New("Mismatch")
 	WriteConflict = errors.New("WriteConflict")
 )
+
+func Join(names []string, s string) string {
+	return strings.Join(names, s)
+}
