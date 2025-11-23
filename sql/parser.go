@@ -601,7 +601,7 @@ func (p *Parser) parseExplain() Statement {
 	}
 	statement := p.parseStatement()
 	return &ExplainData{
-		Statement: statement,
+		Statements: statement,
 	}
 }
 

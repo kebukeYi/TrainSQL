@@ -10,6 +10,10 @@ type ResultPair struct {
 	Value []byte
 }
 
+func (receiver *ResultPair) ToString() string {
+	return "[" + string(receiver.Key) + ":" + string(receiver.Value) + "]"
+}
+
 type Storage interface {
 	Lock()
 	UnLock()

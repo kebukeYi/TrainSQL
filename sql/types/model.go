@@ -387,7 +387,7 @@ type CommitResult struct {
 }
 
 func (b *CommitResult) ToString() string {
-	return fmt.Sprintf("TRANSACTION %d COOMIT", b.Version)
+	return fmt.Sprintf("TRANSACTION %d COMMIT", b.Version)
 
 }
 

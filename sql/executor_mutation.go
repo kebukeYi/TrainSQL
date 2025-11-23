@@ -1,7 +1,6 @@
 package sql
 
 import (
-	"fmt"
 	"github.com/kebukeYi/TrainSQL/sql/types"
 	"github.com/kebukeYi/TrainSQL/sql/util"
 )
@@ -70,11 +69,10 @@ func makeRow(table *types.Table, columns []string, row types.Row) types.Row {
 }
 
 func (i *InsertTableExecutor) Execute(s Service) types.ResultSet {
-	fmt.Println("ExecuteInsertTable")
 	count := 0
-	// 先取出表信息
+	// 先取出表信息;
 	mustGetTable := s.MustGetTable(i.TableName)
-	// 每一行数据
+	// 每一行数据;
 	for _, expressions := range i.Values {
 		var row []types.Value
 		for _, expression := range expressions { // 每一行的多个列;

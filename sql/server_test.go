@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"fmt"
 	"github.com/kebukeYi/TrainSQL/storage"
 	"testing"
 )
@@ -41,4 +42,27 @@ func TestKVService_ExecuteScan(t *testing.T) {
 	session.Execute("insert into test(id,name) values(3, 'hh');")
 	resultSet := session.Execute("select * from test;")
 	resultSet.ToString()
+}
+
+func TestShowTables(t *testing.T) {
+	storage := storage.NewMemoryStorage()
+	kvServer := NewKVServer(storage)
+	session := kvServer.Session()
+	set := session.Execute("begin;")
+	fmt.Println(set.ToString())
+
+	set = session.Execute("create table test(id int primary key, name varchar);")
+	fmt.Println(set.ToString())
+
+	set = session.Execute("create table test1(id int primary key, name varchar);")
+	fmt.Println(set.ToString())
+
+	set = session.Execute("create table test2(id int primary key, name varchar);")
+	fmt.Println(set.ToString())
+
+	set = session.Execute("commit;")
+	fmt.Println(set.ToString())
+
+	showTableNames := session.ShowTableNames()
+	fmt.Println(showTableNames)
 }

@@ -131,6 +131,7 @@ func (s *KVService) CreateTable(table *types.Table) {
 	if err := encoder.Encode(table); err != nil {
 		util.Error("encode table error")
 	}
+	// tableNameKey: Table_test
 	tableNameKey := GetTableNameKey(table.Name)
 	s.txn.Set(tableNameKey, buffer.Bytes())
 }
@@ -145,6 +146,7 @@ func (s *KVService) DropTable(tableName string) {
 	s.txn.Delete(tableNameKey)
 }
 func (s *KVService) GetTable(tableName string) *types.Table {
+	// tableNameKey : Table_test
 	tableNameKey := GetTableNameKey(tableName)
 	tableBytes := s.txn.Get(tableNameKey)
 	if tableBytes == nil {
@@ -272,14 +274,14 @@ func (s *KVService) GetTableNames() []string {
 	pairs := s.txn.ScanPrefix(tablePrefixKey, false)
 	names := make([]string, 0)
 	for _, pair := range pairs {
-		var buffer bytes.Buffer
-		buffer.Write(pair.Value)
-		decoder := gob.NewDecoder(&buffer)
-		var table types.Table
-		if err := decoder.Decode(&table); err != nil {
-			util.Error("decode table error")
-		}
-		names = append(names, table.Name)
+		//var buffer bytes.Buffer
+		//buffer.Write(pair.Value)
+		//decoder := gob.NewDecoder(&buffer)
+		//var table types.Table
+		//if err := decoder.Decode(&table); err != nil {
+		//	util.Error("decode table error")
+		//}
+		names = append(names, string(pair.Key))
 	}
 	return names
 }

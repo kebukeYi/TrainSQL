@@ -31,25 +31,33 @@ func (s *Session) Execute(sqlStr string) types.ResultSet {
 		case *CommitData:
 			version := s.Service.Version()
 			s.Service.Commit()
+			s.Service = nil
 			return &types.CommitResult{Version: int(version)}
 		case *RollbackData:
 			version := s.Service.Version()
 			s.Service.Rollback()
+			s.Service = nil
 			return &types.RollbackResult{Version: int(version)}
 		case *ExplainData:
 		default:
+			// 前面手动 begin 起来的事务;随后的sql会进入到这分支;
 			if s.Service != nil {
 				plan := NewPlan(statement, s.Service)
 				return plan.Execute()
 			} else {
+				// 没有手动启动 begin, 那么随后的每一条sql 都将会进入到这分支;
+				// 自动创建事务, 自动提交;
 				s.Service = s.Server.Begin()
 				plan := NewPlan(statement, s.Service)
 				resultSet := plan.Execute()
 				if resultSet != nil {
 					plan.Service.Commit()
+					s.Service = nil
 					return resultSet
 				} else {
+					s.Service = nil
 					plan.Service.Rollback()
+					s.Service = nil
 					return &types.ErrorResult{
 						ErrorMessage: "Execute sql error will rollback;",
 					}
@@ -77,7 +85,7 @@ func (s *Session) GetTable(tableName string) string {
 	}
 }
 
-func (s *Session) GetTableName() string {
+func (s *Session) ShowTableNames() string {
 	var names []string
 	if s.Service != nil {
 		names = s.Service.GetTableNames()

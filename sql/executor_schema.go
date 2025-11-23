@@ -15,7 +15,6 @@ func NewCreateTableExecutor(schema *types.Table) *CreatTableExecutor {
 	}
 }
 func (c *CreatTableExecutor) Execute(s Service) types.ResultSet {
-	fmt.Println("ExecuteCreateTable")
 	tableName := c.Schema.Name
 	s.CreateTable(c.Schema)
 	return &types.CreateTableResult{TableName: tableName}

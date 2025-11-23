@@ -240,9 +240,9 @@ func (t *Transaction) ScanPrefix(keyPrefix []byte, needValue bool) []ResultPair 
 	newResultPairs := make([]ResultPair, 0)
 	for _, pair := range resultPairs {
 		// 将有删除标记的记录过滤掉;
-		if pair.Value == nil || len(pair.Value) == 0 {
-			continue
-		}
+		//if pair.Value == nil || len(pair.Value) == 0 {
+		//	continue
+		//}
 		version := SplitKeyVersion(pair.Key)
 		if t.transactionState.isVisible(version) {
 			// pair.Key: KeyVersion_Row_user_version(8字节)

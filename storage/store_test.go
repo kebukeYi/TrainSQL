@@ -79,7 +79,6 @@ func TestAscendKeys(t *testing.T) {
 		var keys [][]byte
 		var values [][]byte
 		db.AscendKeys(pattern, true, func(key []byte, value []byte) (bool, error) {
-
 			//if strings.HasPrefix(string(key), string(pattern)) {
 			//	return true, nil
 			//}
@@ -96,9 +95,7 @@ func TestAscendKeys(t *testing.T) {
 	str := "^se" // 只有前缀允许匹配;
 	//str := "se"  // 使用strings.HasPrefix(), 非正则表达式判断;
 	//validate([][]byte{[]byte("seafood"), []byte("seafoo"), []byte("sefoo")}, []byte(str))
-	validate([][]byte{[]byte("seafoo"), []byte("seafood"), []byte("sefoo")},
-		[][]byte{{2}, {1}, {3}},
-		[]byte(str))
+	validate([][]byte{[]byte("seafoo"), []byte("seafood"), []byte("sefoo")}, [][]byte{{2}, {1}, {3}}, []byte(str))
 
 	err = db.Put([]byte("bbde"), utils.RandomValue(10))
 	assert.Nil(t, err)
@@ -106,6 +103,29 @@ func TestAscendKeys(t *testing.T) {
 	assert.Nil(t, err)
 	err = db.Put([]byte("bcae"), utils.RandomValue(10))
 	assert.Nil(t, err)
+}
+
+func TestPrefixDeleteKey(t *testing.T) {
+	storage := NewMemoryStorage()
+	storage.Set([]byte("key"), []byte("value"))
+	storage.Set([]byte("key1"), []byte("value1"))
+	storage.Set([]byte("key2"), []byte("value2"))
+	storage.Delete([]byte("key1"))
+	resultPairs := storage.ScanPrefix([]byte("key"), true)
+	for _, pair := range resultPairs {
+		fmt.Println(pair.ToString())
+	}
+	assert.Equal(t, []*ResultPair{
+		{
+			Key:   []byte("key"),
+			Value: []byte("value"),
+		},
+		{
+			Key:   []byte("key2"),
+			Value: []byte("value2"),
+		},
+	}, resultPairs)
+
 }
 
 func test_point_opt(t *testing.T, storage Storage) {
