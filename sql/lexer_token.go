@@ -73,7 +73,6 @@ const (
 
 	Cross TokenValue = "CROSS"
 	Join  TokenValue = "JOIN"
-	Inner TokenValue = "INNER"
 	Left  TokenValue = "LEFT"
 	Right TokenValue = "RIGHT"
 

@@ -15,7 +15,6 @@ var (
 func GetNextVersionKey() []byte {
 	return []byte(NextVersion)
 }
-
 func GetTenActiveKey(version Version) []byte {
 	buffer := []byte(TenActive)
 	buf := make([]byte, 8)
@@ -26,7 +25,6 @@ func GetTenActiveKey(version Version) []byte {
 func GetPrefixTenActiveKey() []byte {
 	return []byte(TenActive)
 }
-
 func GetTenActiveKeyVersion(key []byte) Version {
 	return Version(binary.BigEndian.Uint64(key[len(TenActive):]))
 }
@@ -62,7 +60,6 @@ func GetKeyVersionKey(key []byte, version Version) []byte {
 	buffer = append(buffer, buf...)
 	return buffer
 }
-
 func GetPrefixKeyVersionKey(key []byte) []byte {
 	buffer := []byte(KeyVersion)
 	// buffer : KeyVersion_user_id
@@ -77,7 +74,6 @@ func SplitKeyVersion(key []byte) Version {
 	}
 	return Version(binary.BigEndian.Uint64(key[len(key)-8:]))
 }
-
 func GetRawKeyFromKeyVersion(keyVersion []byte) []byte {
 	if len(keyVersion) < len(KeyVersion)+8 {
 		util.Error("SplitKeyVersion: key length error")

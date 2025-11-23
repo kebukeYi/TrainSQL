@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/kebukeYi/TrainSQL/sql/util"
 	"github.com/rosedblabs/rosedb/v2"
-	"github.com/rosedblabs/rosedb/v2/utils"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -60,7 +59,7 @@ func TestAscendGreaterOrEqual(t *testing.T) {
 	fmt.Println("AscendRange count:", count)
 }
 
-func TestAscendKeys(t *testing.T) {
+func TestAscendKeysOfPattern(t *testing.T) {
 	util.ClearPath(storageDirPath)
 	options := rosedb.DefaultOptions
 	options.DirPath = storageDirPath
@@ -97,12 +96,6 @@ func TestAscendKeys(t *testing.T) {
 	//validate([][]byte{[]byte("seafood"), []byte("seafoo"), []byte("sefoo")}, []byte(str))
 	validate([][]byte{[]byte("seafoo"), []byte("seafood"), []byte("sefoo")}, [][]byte{{2}, {1}, {3}}, []byte(str))
 
-	err = db.Put([]byte("bbde"), utils.RandomValue(10))
-	assert.Nil(t, err)
-	err = db.Put([]byte("cdea"), utils.RandomValue(10))
-	assert.Nil(t, err)
-	err = db.Put([]byte("bcae"), utils.RandomValue(10))
-	assert.Nil(t, err)
 }
 
 func TestPrefixDeleteKey(t *testing.T) {
@@ -128,7 +121,7 @@ func TestPrefixDeleteKey(t *testing.T) {
 
 }
 
-func test_point_opt(t *testing.T, storage Storage) {
+func testPointOpt(t *testing.T, storage Storage) {
 	assert.Equal(t, storage.Get([]byte("not exist")), []byte(nil))
 
 	storage.Set([]byte("key"), []byte("value"))
@@ -145,7 +138,7 @@ func test_point_opt(t *testing.T, storage Storage) {
 	assert.Equal(t, storage.Get([]byte(nil)), []byte(nil))
 }
 
-func test_scan(t *testing.T, storage Storage) {
+func testScan(t *testing.T, storage Storage) {
 	storage.Set([]byte("nnaes"), []byte("value"))
 	storage.Set([]byte("amhue"), []byte("value"))
 	storage.Set([]byte("meeae"), []byte("value"))
@@ -190,7 +183,7 @@ func test_scan(t *testing.T, storage Storage) {
 	assert.Equal(t, data1, storage.Scan(&RangeBounds{StartKey: []byte("b"), EndKey: []byte("x")}))
 }
 
-func test_scan_prefix(t *testing.T, storage Storage) {
+func testScanPrefix(t *testing.T, storage Storage) {
 	storage.Set([]byte("ccnaes"), []byte("value1"))
 	storage.Set([]byte("camhue"), []byte("value2"))
 	storage.Set([]byte("deeae"), []byte("value3"))
@@ -214,16 +207,16 @@ func test_scan_prefix(t *testing.T, storage Storage) {
 
 func TestMemoryStorage(t *testing.T) {
 	storage := NewMemoryStorage()
-	test_point_opt(t, storage)
-	test_scan(t, storage)
-	test_scan_prefix(t, storage)
+	testPointOpt(t, storage)
+	testScan(t, storage)
+	testScanPrefix(t, storage)
 }
 
 func TestDiskStorage(t *testing.T) {
 	util.ClearPath(storageDirPath)
 	storage := NewDiskStorage(storageDirPath)
 	defer storage.Close()
-	test_point_opt(t, storage)
-	test_scan(t, storage)
-	test_scan_prefix(t, storage)
+	testPointOpt(t, storage)
+	testScan(t, storage)
+	testScanPrefix(t, storage)
 }

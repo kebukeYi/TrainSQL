@@ -15,7 +15,6 @@ func NewTransactionManager(storage Storage) *TransactionManager {
 		storage: storage,
 	}
 }
-
 func (m *TransactionManager) Begin() *Transaction {
 	t := NewTransaction(m.storage)
 	t.begin()
@@ -155,11 +154,13 @@ func (t *Transaction) Set(key []byte, value []byte) error {
 	defer t.storage.UnLock()
 	return t.writeInner(key, value)
 }
+
 func (t *Transaction) Delete(key []byte) error {
 	t.storage.Lock()
 	defer t.storage.UnLock()
 	return t.writeInner(key, nil)
 }
+
 func (t *Transaction) writeInner(key []byte, value []byte) error {
 	var checkVersion Version
 	// 活跃事务为空, 说明当前事务为第一个启动事务; 但是之后存在哪些事务不清楚;

@@ -5,35 +5,6 @@ import (
 	"github.com/kebukeYi/TrainSQL/sql/types"
 )
 
-type FromItem interface {
-	Item()
-}
-type TableItem struct {
-	TableName string
-}
-
-func (t *TableItem) Item() {
-}
-
-type JoinType int
-
-var (
-	CrossType JoinType = 1
-	InnerType JoinType = 2
-	LeftType  JoinType = 3
-	RightType JoinType = 4
-)
-
-type JoinItem struct {
-	Left      FromItem
-	Right     FromItem
-	JoinType  JoinType
-	Predicate *types.Expression
-}
-
-func (j *JoinItem) Item() {
-}
-
 type Statement interface {
 	Statement() types.ResultSet
 }

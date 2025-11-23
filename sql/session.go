@@ -6,7 +6,7 @@ import (
 )
 
 type Session struct {
-	Server  Server
+	Server  *Server
 	Service Service
 }
 

@@ -492,13 +492,13 @@ func (p *Parser) parseLimitClause() *types.Expression {
 	}
 	return nil
 }
-
 func (p *Parser) parseOffsetClause() *types.Expression {
 	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Offset}); token != nil {
 		return p.parseExpression()
 	}
 	return nil
 }
+
 func (p *Parser) parseDelete() Statement {
 	p.nextExpect(&Token{Type: KEYWORD, Value: Delete})
 	p.nextExpect(&Token{Type: KEYWORD, Value: From})
@@ -536,7 +536,6 @@ func (p *Parser) parseUpdate() Statement {
 		Columns:     columns,
 	}
 }
-
 func (p *Parser) parseWhereClause() *types.Expression {
 	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Where}); token == nil {
 		return nil
@@ -591,7 +590,6 @@ func (p *Parser) parseTransaction() Statement {
 	}
 	return nil
 }
-
 func (p *Parser) parseExplain() Statement {
 	p.nextExpect(&Token{Type: KEYWORD, Value: Explain})
 	if next := p.peek(); next != nil {
@@ -606,5 +604,6 @@ func (p *Parser) parseExplain() Statement {
 }
 
 func (p *Parser) parseDdlCreateView() Statement {
+	// todo 有待实现
 	return nil
 }
