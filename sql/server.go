@@ -4,21 +4,21 @@ import (
 	"github.com/kebukeYi/TrainSQL/storage"
 )
 
-type Server struct {
+type ServerManager struct {
 	// 统一事务管理器
 	txnManager *storage.TransactionManager
 }
 
-func (s *Server) Begin() Service {
+func (s *ServerManager) Begin() Service {
 	return NewKVService(s.txnManager.Begin())
 }
 
-func NewServer(sto storage.Storage) *Server {
-	return &Server{
+func NewServer(sto storage.Storage) *ServerManager {
+	return &ServerManager{
 		txnManager: storage.NewTransactionManager(sto),
 	}
 }
-func (s *Server) Session() Session {
+func (s *ServerManager) Session() Session {
 	return Session{
 		Server: s,
 	}
