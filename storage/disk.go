@@ -51,11 +51,12 @@ func (disk *DiskStorage) Lock() {
 func (disk *DiskStorage) UnLock() {
 	disk.lock.Unlock()
 }
-func (disk *DiskStorage) Close() {
+func (disk *DiskStorage) Close() error {
 	err := disk.db.Close()
 	if err != nil {
-		util.Error("[DiskStorage] close error")
+		return err
 	}
+	return nil
 }
 func (disk *DiskStorage) Sync() {
 	err := disk.db.Sync()

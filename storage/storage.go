@@ -24,4 +24,5 @@ type Storage interface {
 	Scan(bounds *RangeBounds) []*ResultPair
 	// ScanPrefix [^prefix]
 	ScanPrefix(keyPrefix []byte, isValue bool) []*ResultPair
+	Close() error
 }

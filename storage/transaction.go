@@ -21,6 +21,10 @@ func (m *TransactionManager) Begin() *Transaction {
 	return t
 }
 
+func (m *TransactionManager) Close() error {
+	return m.storage.Close()
+}
+
 type Version uint64
 
 type TransactionState struct {
@@ -67,21 +71,21 @@ func (t *Transaction) begin() *Transaction {
 	defer t.storage.UnLock()
 	// nextVersionKey : NextVersion_
 	nextVersionKey := GetNextVersionKey()
-	version := t.storage.Get(nextVersionKey)
-	nextVersion := Version(0)
-	if version == nil {
-		nextVersion += 1
+	nextVersion := t.storage.Get(nextVersionKey)
+	version := Version(0)
+	if nextVersion == nil {
+		version = Version(1)
 	} else {
-		v := binary.LittleEndian.Uint64(version)
-		nextVersion = Version(v)
+		v := binary.LittleEndian.Uint64(nextVersion)
+		version = Version(v)
 	}
-	t.storage.Set(nextVersionKey, binary.LittleEndian.AppendUint64(nil, uint64(nextVersion+1)))
-	activeVersions := t.ScanActive()
+	t.storage.Set(nextVersionKey, binary.LittleEndian.AppendUint64(nil, uint64(version+1)))
+	activeVersions := t.ScanActive() // 不会扫描到当前事务;
 	// key: TenActive_version(8字节)
-	key := GetTenActiveKey(nextVersion)
+	key := GetTenActiveKey(version)
 	t.storage.Set(key, nil)
 	t.transactionState = &TransactionState{
-		Version:        nextVersion,
+		Version:        version,
 		activeVersions: activeVersions,
 	}
 	return t

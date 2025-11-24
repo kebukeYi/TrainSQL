@@ -74,7 +74,8 @@ func (m *MemoryStorage) ScanPrefix(keyPrefix []byte, isValue bool) []*ResultPair
 	return result
 }
 
-func (m *MemoryStorage) Close() {
+func (m *MemoryStorage) Close() error {
+	return nil
 }
 
 func (m *MemoryStorage) Sync() {
