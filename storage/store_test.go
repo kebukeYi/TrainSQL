@@ -118,11 +118,15 @@ func TestPrefixDeleteKey(t *testing.T) {
 			Value: []byte("value2"),
 		},
 	}, resultPairs)
-
 }
 
 func testPointOpt(t *testing.T, storage Storage) {
-	assert.Equal(t, storage.Get([]byte("not exist")), []byte(nil))
+	// 类型为 [] byte 的 nil 空切片
+	assert.Equal(t, []byte(nil), storage.Get([]byte("not exist")))
+	// 类型为 [] byte 的非 nil 空切片
+	// assert.Equal(t, []byte{}, storage.Get([]byte("not exist")))
+	// 无类型的空标识
+	// assert.Equal(t, nil, storage.Get([]byte("not exist")))
 
 	storage.Set([]byte("key"), []byte("value"))
 	assert.Equal(t, storage.Get([]byte("key")), []byte("value"))

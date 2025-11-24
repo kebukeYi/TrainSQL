@@ -83,7 +83,7 @@ func (t *Transaction) begin() *Transaction {
 	activeVersions := t.ScanActive() // 不会扫描到当前事务;
 	// key: TenActive_version(8字节)
 	key := GetTenActiveKey(version)
-	t.storage.Set(key, nil)
+	t.storage.Set(key, []byte{})
 	t.transactionState = &TransactionState{
 		Version:        version,
 		activeVersions: activeVersions,
@@ -162,7 +162,7 @@ func (t *Transaction) Set(key []byte, value []byte) error {
 func (t *Transaction) Delete(key []byte) error {
 	t.storage.Lock()
 	defer t.storage.UnLock()
-	return t.writeInner(key, nil)
+	return t.writeInner(key, []byte{})
 }
 
 func (t *Transaction) writeInner(key []byte, value []byte) error {
@@ -201,7 +201,7 @@ func (t *Transaction) writeInner(key []byte, value []byte) error {
 	// writeKey: TxnWrite_version(8字节)_key; 当前事务的操作记录; 可供当前事务事后的前缀扫描查询;
 	writeKey := GetTxnWriteKey(t.transactionState.Version, key)
 	// 记录 当前事务(version) 写入了哪些 key 记录, 用于回滚事务;
-	t.storage.Set(writeKey, nil)
+	t.storage.Set(writeKey, []byte{})
 	// versionKey: KeyVersion_key_version(8字节), value
 	versionKey := GetKeyVersionKey(key, t.transactionState.Version)
 	t.storage.Set(versionKey, value)
@@ -244,7 +244,8 @@ func (t *Transaction) ScanPrefix(keyPrefix []byte, needValue bool) []ResultPair 
 	resultPairs := t.storage.ScanPrefix(keyVersionKey, needValue)
 	newResultPairs := make([]ResultPair, 0)
 	for _, pair := range resultPairs {
-		// 将有删除标记的记录过滤掉;
+		// 会将 TenActive_ 前缀的 key 过滤掉;
+		// 删除 也相当于 写入了新值, 不过这个新值是 nil;
 		//if pair.Value == nil || len(pair.Value) == 0 {
 		//	continue
 		//}
