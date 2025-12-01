@@ -2,7 +2,6 @@ package sql
 
 import (
 	"fmt"
-	"github.com/kebukeYi/TrainSQL/sql/types"
 	"github.com/kebukeYi/TrainSQL/storage"
 	"testing"
 )
@@ -25,18 +24,4 @@ func TestGroupBy(t *testing.T) {
 	resultSet := session.Execute("select count(a) as total, min(a), max(b),sum(c),avg(c) from test group by c ;")
 	toString := resultSet.ToString()
 	fmt.Println(toString)
-}
-
-func TestGroupByMapKey(t *testing.T) {
-	aggMap := make(map[types.Value][]types.Row)
-	aggMap[types.NewConstInt(1)] = []types.Row{
-		[]types.Value{
-			types.NewConstInt(1),
-			types.NewConstInt(1),
-		},
-		[]types.Value{
-			types.NewConstInt(1),
-			types.NewConstInt(2),
-		},
-	}
 }

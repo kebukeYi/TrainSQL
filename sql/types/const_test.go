@@ -71,7 +71,7 @@ func TestConstPartialCmp(t *testing.T) {
 			}
 		}
 		// 所有排序条件都相等
-		// 返回 false 表示 i 不应该在 j 之前，保持原顺序
+		// 返回 false 表示 i 不应该在 j 之前, 保持原顺序;
 		return false
 	})
 
