@@ -54,9 +54,11 @@ func (scan *IndexScanTableExecutor) Execute(s Service) types.ResultSet {
 	}
 	loadIndex := s.LoadIndex(table.Name, scan.Filed, scan.Value)
 	sort.Slice(loadIndex, func(i, j int) bool {
-		// todo Value比较函数, 有待优化;
-		if loadIndex[i].Compare(loadIndex[j]) == -1 {
-			return true
+		if ok, cmp := loadIndex[i].PartialCmp(loadIndex[j]); ok {
+			// true:  表示索引 i 的元素应该排在索引 j 的元素之前
+			// false: 表示索引 i 的元素应该排在索引 j 的元素之后
+			// return numbers[i] < numbers[j]  // i < j 返回 true，表示 i 应该在前;
+			return cmp == 1
 		}
 		return false
 	})
@@ -145,10 +147,11 @@ func (filter *FilterExecutor) Execute(s Service) types.ResultSet {
 
 type ProjectExecutor struct {
 	Source Executor
-	Exprs  map[*types.Expression]string
+	//Exprs  map[*types.Expression]string
+	Exprs []*SelectCol
 }
 
-func NewProjectExecutor(source Executor, exprs map[*types.Expression]string) *ProjectExecutor {
+func NewProjectExecutor(source Executor, exprs []*SelectCol) *ProjectExecutor {
 	return &ProjectExecutor{
 		Source: source,
 		Exprs:  exprs,
@@ -159,7 +162,9 @@ func (project *ProjectExecutor) Execute(s Service) types.ResultSet {
 	if set, ok := resultSet.(*types.ScanTableResult); ok {
 		selected := make([]int, 0)
 		newColumnNanes := make([]string, 0)
-		for expression, alias := range project.Exprs {
+		for _, selectCol := range project.Exprs {
+			alias := selectCol.Alis
+			expression := selectCol.Expr
 			if expression.Field != "" {
 				for index, column := range set.Columns {
 					if column == expression.Field {
@@ -204,7 +209,7 @@ func (order *OrderExecutor) Execute(s Service) types.ResultSet {
 	resultSet := order.Source.Execute(s)
 	if set, ok := resultSet.(*types.ScanTableResult); ok {
 		// 找到 order by 的列对应表中的列的位置;
-		orderColIndex := make(map[string]int, 0)
+		orderColIndex := make(map[string]int)
 		for colName, _ := range order.OrderBy {
 			for index, column := range set.Columns {
 				if column == colName {
@@ -223,23 +228,20 @@ func (order *OrderExecutor) Execute(s Service) types.ResultSet {
 				// 每一行的固定列值来参与 排序;
 				iValue := set.Rows[i][orderColIndex[colName]]
 				jValue := set.Rows[j][orderColIndex[colName]]
-				compare := iValue.Compare(jValue)
-				if compare == 0 {
+				allow, cmp := iValue.PartialCmp(jValue)
+				if !allow {
+					continue
+				}
+				if cmp == 0 {
+					continue
+				}
+				if direction == OrderAsc {
+					return cmp < 0
 				} else {
-					if direction == OrderAsc {
-						if compare == -1 {
-							return true
-						}
-						return false
-					} else {
-						if compare == 1 {
-							return true
-						}
-						return false
-					}
+					return cmp > 0
 				}
 			}
-			return true
+			return false
 		})
 		return &types.ScanTableResult{
 			Columns: set.Columns,

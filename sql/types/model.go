@@ -34,6 +34,8 @@ type Expression struct {
 }
 
 func EvaluateExpr(expr *Expression, lcols []string, lrows []Value, rcols []string, rrows []Value) Value {
+	// 假如字段类型不为空, 那就默认获取左表字段值;
+	// note:仅仅解析第一对参数值, 所以以后传参只传第一对即;
 	if expr.Field != "" {
 		lpos := -1
 		for i, lcol := range lcols {
@@ -46,57 +48,73 @@ func EvaluateExpr(expr *Expression, lcols []string, lrows []Value, rcols []strin
 		}
 		return lrows[lpos]
 	}
+
+	// 过滤类型是 常量值, 直接返回即可;
 	if expr.ConstVal != nil {
 		return expr.ConstVal
 	}
 
+	// 左列值 和 右列值进行比较;
 	if expr.OperationVal != nil {
 		switch expr.OperationVal.(type) {
 		case *OperationEqual:
 			equal := expr.OperationVal.(*OperationEqual)
+			// 传入左列表达式, 左列值;
 			lv := EvaluateExpr(equal.Left, lcols, lrows, rcols, rrows)
-			rv := EvaluateExpr(equal.Right, lcols, lrows, rcols, rrows)
-			return CompareValue(lv, rv, expr.OperationVal)
+			// 传入右列表达式, 右列值;
+			rv := EvaluateExpr(equal.Right, rcols, rrows, lcols, lrows)
+			// 进行值的具体比较;
+			return OperationCompareValue(lv, rv, expr.OperationVal)
 		case *OperationGreaterThan:
 			greaterThan := expr.OperationVal.(*OperationGreaterThan)
 			lv := EvaluateExpr(greaterThan.Left, lcols, lrows, rcols, rrows)
-			rv := EvaluateExpr(greaterThan.Right, lcols, lrows, rcols, rrows)
-			return CompareValue(lv, rv, expr.OperationVal)
+			rv := EvaluateExpr(greaterThan.Right, rcols, rrows, lcols, lrows)
+			return OperationCompareValue(lv, rv, expr.OperationVal)
 		case *OperationLessThan:
 			lessThan := expr.OperationVal.(*OperationLessThan)
 			lv := EvaluateExpr(lessThan.Left, lcols, lrows, rcols, rrows)
-			rv := EvaluateExpr(lessThan.Right, lcols, lrows, rcols, rrows)
-			return CompareValue(lv, rv, expr.OperationVal)
+			rv := EvaluateExpr(lessThan.Right, rcols, rrows, lcols, lrows)
+			return OperationCompareValue(lv, rv, expr.OperationVal)
 		}
 	}
 	util.Error("[EvaluateExpr] not support operation")
 	return nil
 }
 
-func CompareValue(lv, rv Value, operation Operation) Value {
+func OperationCompareValue(lv, rv Value, operation Operation) Value {
 	switch operation.(type) {
 	case *OperationEqual:
-		// lv 小返回-1, lv大返回1, 相等返回0; 不能比较的返回错误; 只要一方为null, 返回-2;
-		compare := lv.Compare(rv)
-		if compare == 0 {
-			return &ConstBool{Value: true}
+		// lv 小返回-1, lv大返回1, 相等返回0; 不能比较的返回错误;
+		if allow, compare := lv.PartialCmp(rv); allow {
+			if compare == 0 {
+				return &ConstBool{Value: true}
+			}
+		} else {
+			util.Error("[OperationCompareValue]OperationEqual can not compare value")
 		}
 		return &ConstBool{Value: false}
 	case *OperationGreaterThan:
-		compare := lv.Compare(rv)
-		if compare == 1 {
-			return &ConstBool{Value: true}
+		if allow, compare := lv.PartialCmp(rv); allow {
+			if compare == 1 {
+				return &ConstBool{Value: true}
+			}
+		} else {
+			util.Error("[OperationCompareValue]OperationGreaterThan can not compare value")
 		}
 		return &ConstBool{Value: false}
 	case *OperationLessThan:
-		compare := lv.Compare(rv)
-		if compare == -1 {
-			return &ConstBool{Value: true}
+		if allow, compare := lv.PartialCmp(rv); allow {
+			if compare == -1 {
+				return &ConstBool{Value: true}
+			}
+		} else {
+			util.Error("[OperationCompareValue]OperationLessThan can not compare value")
 		}
 		return &ConstBool{Value: false}
 	}
 	return nil
 }
+
 func NewExpression(con Const) *Expression {
 	return &Expression{ConstVal: con}
 }
@@ -141,13 +159,21 @@ type Const interface {
 	Into() interface{}
 	Bytes() []byte
 	DateType() DataType
-	Compare(c Const) int
+	PartialCmp(c Const) (bool, int)
+	Hash() uint32
 }
 
 type ConstInt struct {
 	Value int64
 }
 
+func NewConstInt(value int64) *ConstInt {
+	return &ConstInt{Value: value}
+}
+
+func (i *ConstInt) Hash() uint32 {
+	return util.Hash(i.Bytes())
+}
 func (i *ConstInt) Into() interface{} {
 	return i.Value
 }
@@ -157,28 +183,30 @@ func (i *ConstInt) Bytes() []byte {
 func (i *ConstInt) DateType() DataType {
 	return Integer
 }
-func (i *ConstInt) Compare(c Const) int {
+func (i *ConstInt) PartialCmp(c Const) (bool, int) {
 	switch c.(type) {
 	case *ConstInt:
 		if i.Value == c.(*ConstInt).Value {
-			return 0
+			return true, 0
 		}
 		if i.Value < c.(*ConstInt).Value {
-			return -1
+			return true, -1
 		}
-		return 1
+		return true, 1
 	case *ConstFloat:
 		if float64(i.Value) == c.(*ConstFloat).Value {
-			return 0
+			return true, 0
 		}
 		if float64(i.Value) < c.(*ConstFloat).Value {
-			return -1
+			return true, -1
 		}
-		return 1
+		return true, 1
 	case *ConstNull:
-		return 1
+		// 任何数据类型 vs null 类型, 结果都比null值大;
+		return true, 1
 	default:
-		return 0
+		// 其他类型, 则不允许比较;
+		return false, 0
 	}
 }
 
@@ -186,6 +214,13 @@ type ConstFloat struct {
 	Value float64
 }
 
+func NewConstFloat(value float64) *ConstFloat {
+	return &ConstFloat{Value: value}
+}
+
+func (f *ConstFloat) Hash() uint32 {
+	return util.Hash(f.Bytes())
+}
 func (f *ConstFloat) Into() interface{} {
 	return f.Value
 }
@@ -195,28 +230,28 @@ func (f *ConstFloat) Bytes() []byte {
 func (f *ConstFloat) DateType() DataType {
 	return Float
 }
-func (f *ConstFloat) Compare(c Const) int {
+func (f *ConstFloat) PartialCmp(c Const) (bool, int) {
 	switch c.(type) {
 	case *ConstInt:
 		if f.Value == float64(c.(*ConstInt).Value) {
-			return 0
+			return true, 0
 		}
 		if f.Value < float64(c.(*ConstInt).Value) {
-			return -1
+			return true, -1
 		}
-		return 1
+		return true, 1
 	case *ConstFloat:
 		if f.Value == c.(*ConstFloat).Value {
-			return 0
+			return true, 0
 		}
 		if f.Value < c.(*ConstFloat).Value {
-			return -1
+			return true, -1
 		}
-		return 1
+		return true, 1
 	case *ConstNull:
-		return 1
+		return true, 1
 	default:
-		return 0
+		return false, 0
 	}
 }
 
@@ -224,6 +259,13 @@ type ConstString struct {
 	Value string
 }
 
+func NewConstString(value string) *ConstString {
+	return &ConstString{Value: value}
+}
+
+func (s *ConstString) Hash() uint32 {
+	return util.Hash(s.Bytes())
+}
 func (s *ConstString) Bytes() []byte {
 	return []byte(s.Value)
 }
@@ -236,14 +278,14 @@ func (s *ConstString) DateType() DataType {
 	return String
 }
 
-func (s *ConstString) Compare(c Const) int {
+func (s *ConstString) PartialCmp(c Const) (bool, int) {
 	switch c.(type) {
 	case *ConstString:
-		return strings.Compare(s.Value, c.(*ConstString).Value)
+		return true, strings.Compare(s.Value, c.(*ConstString).Value)
 	case *ConstNull:
-		return 1
+		return true, 1
 	default:
-		return 0
+		return false, 0
 	}
 }
 
@@ -251,6 +293,13 @@ type ConstBool struct {
 	Value bool
 }
 
+func (b *ConstBool) Hash() uint32 {
+	return util.Hash(b.Bytes())
+}
+
+func NewConstBool(value bool) *ConstBool {
+	return &ConstBool{Value: value}
+}
 func (b *ConstBool) Bytes() []byte {
 	if b.Value {
 		return []byte("true")
@@ -263,42 +312,49 @@ func (b *ConstBool) Into() interface{} {
 func (b *ConstBool) DateType() DataType {
 	return Boolean
 }
-func (b *ConstBool) Compare(c Const) int {
+func (b *ConstBool) PartialCmp(c Const) (bool, int) {
 	switch c.(type) {
 	case *ConstBool:
 		if b.Value == c.(*ConstBool).Value {
-			return 0
+			return true, 0
 		}
 		if b.Value {
-			return 1
+			return true, 1
 		}
-		return -1
+		return true, -1
 	case *ConstNull:
-		return 1
+		return true, 1
 	default:
-		return 0
+		return false, 0
 	}
 }
 
 type ConstNull struct {
-	Value struct{}
 }
 
+func NewConstNull() *ConstNull {
+	return &ConstNull{}
+}
+
+func (n *ConstNull) Hash() uint32 {
+	return util.Hash(n.Bytes())
+}
 func (n *ConstNull) Bytes() []byte {
 	return []byte("null")
 }
 func (n *ConstNull) Into() interface{} {
-	return n.Value
+	return []byte("null")
 }
 func (n *ConstNull) DateType() DataType {
 	return Null
 }
-func (n *ConstNull) Compare(c Const) int {
+func (n *ConstNull) PartialCmp(c Const) (bool, int) {
 	switch c.(type) {
 	case *ConstNull:
-		return 0
+		return true, 0
 	default:
-		return -1
+		// null 和 除了null值, 其他比较的结果都比null值小;
+		return true, -1
 	}
 }
 
@@ -340,9 +396,14 @@ type ScanTableResult struct {
 
 func (s *ScanTableResult) ToString() string {
 	fmt.Println("ScanTableResult:")
+	for _, column := range s.Columns {
+		fmt.Print(column)
+		fmt.Print("  ")
+	}
+	fmt.Println()
 	for _, row := range s.Rows {
 		for _, value := range row {
-			fmt.Printf("%s ", value.Bytes())
+			fmt.Printf("%s         ", value.Bytes())
 		}
 		fmt.Println()
 	}
@@ -407,11 +468,13 @@ type ErrorResult struct {
 func (e *ErrorResult) ToString() string {
 	return fmt.Sprintf("ERROR: %s", e.ErrorMessage)
 }
-func Remove(index []Value, value Value) []Value {
-	for i, v := range index {
-		if v.Compare(value) == 0 {
-			return append(index[:i], index[i+1:]...)
+func Remove(source []Value, value Value) []Value {
+	for i, v := range source {
+		if allow, compare := v.PartialCmp(value); allow {
+			if compare == 0 {
+				return append(source[:i], source[i+1:]...)
+			}
 		}
 	}
-	return index
+	return source
 }

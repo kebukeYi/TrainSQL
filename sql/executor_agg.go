@@ -1,22 +1,25 @@
 package sql
 
 import (
+	"bytes"
 	"github.com/kebukeYi/TrainSQL/sql/types"
 	"github.com/kebukeYi/TrainSQL/sql/util"
 	"sort"
+	"strings"
 )
 
 type AggregateExecutor struct {
-	Source  Executor
-	Exprs   map[*types.Expression]string
+	Source   Executor
+	SeqExprs []*SelectCol // 保证插入顺序列;
+	// Exprs    map[*types.Expression]string // <表达式, 别名>
 	GroupBy *types.Expression
 }
 
-func NewAggregateExecutor(source Executor, exprs map[*types.Expression]string, groupBy *types.Expression) *AggregateExecutor {
+func NewAggregateExecutor(source Executor, exprs []*SelectCol, groupBy *types.Expression) *AggregateExecutor {
 	return &AggregateExecutor{
-		Source:  source,
-		Exprs:   exprs,
-		GroupBy: groupBy,
+		Source:   source,
+		SeqExprs: exprs,
+		GroupBy:  groupBy,
 	}
 }
 func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
@@ -24,36 +27,47 @@ func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
 	switch resultSet.(type) {
 	case *types.ScanTableResult:
 		result := resultSet.(*types.ScanTableResult)
-		newCols := make([]string, 0)
+		newColNames := make([]string, 0)
 		newRows := make([]types.Row, 0)
-		// 计算函数
+
+		// 对每个分组, 进行计算 聚集 函数;
 		calc := func(colVal types.Value, rows []types.Row) []types.Value {
 			newRow := make([]types.Value, 0)
-			for expression, alias := range agg.Exprs {
+			// 计算 表达式;
+			//
+			for _, selectCol := range agg.SeqExprs {
+				expression := selectCol.Expr
+				alias := selectCol.Alis
+				// 如果是 函数类型的;
 				if expression.Function != nil {
 					cal := BuildCal(expression.Function.FuncName)
+					// 当前列名字 + 所有列 => 对应列下标 + 所有的行 + 当前函数 => 对应的列结果;
 					val := cal.Calc(expression.Function.ColName, result.Columns, rows)
-					// min(a)            -> min
-					// min(a) as min_val -> min_val
-					if len(agg.Exprs) > len(newCols) {
+					// min(a)            -> 默认列名为 min(a)
+					// min(a) as min_val -> 默认列名为 min_val
+					// 如果函数列 > 列数;
+					if len(agg.SeqExprs) > len(newColNames) {
 						if alias == "" {
-							newCols = append(newCols, expression.Function.FuncName)
+							defaultColName := expression.Function.FuncName + "(" + expression.Function.ColName + ")"
+							newColNames = append(newColNames, defaultColName)
 						} else {
-							newCols = append(newCols, alias)
+							newColNames = append(newColNames, alias)
 						}
 					}
 					newRow = append(newRow, val)
-				} else if expression.Field != "" {
+				} else if expression.Field != "" { // select c2 列;
+					// select c2, min(c1), max(c3) from t group by c2;
 					if agg.GroupBy != nil {
 						if agg.GroupBy.Field != expression.Field {
 							util.Error("AggregateExecutor: can not find group by column")
 						}
 					}
-					if len(agg.Exprs) > len(newCols) {
+
+					if len(agg.SeqExprs) > len(newColNames) {
 						if alias == "" {
-							newCols = append(newCols, expression.Field)
+							newColNames = append(newColNames, expression.Field)
 						} else {
-							newCols = append(newCols, alias)
+							newColNames = append(newColNames, alias)
 						}
 					}
 					newRow = append(newRow, colVal)
@@ -94,16 +108,28 @@ func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
 			if pos == -1 {
 				util.Error("AggregateExecutor: can not find group by column")
 			}
-			// 针对 Group By 的列进行分组
-			aggMap := make(map[types.Value][]types.Row)
-			for _, row := range result.Rows {
-				// 获取当前行中「GROUP BY 列」的值，作为分组的 “键”
-				key := row[pos]
-				aggMap[key] = append(aggMap[key], row)
-			}
 
-			for K, v := range aggMap {
-				row := calc(K, v)
+			// 针对 Group By 的列进行分组;
+			// aggMap := make(map[types.Value][]types.Row)
+			aggMap := make(map[uint32][]types.Row)
+			for _, row := range result.Rows {
+				// 获取当前行中「GROUP BY 列」的值, 作为分组的 “键”;
+				key := row[pos]
+				hashKey := key.Hash()
+				// 当前列肯定有多个 相同的值, 直接追加即可;
+				// aggMap[key] = append(aggMap[key], row)
+				aggMap[hashKey] = append(aggMap[hashKey], row)
+			}
+			// 存在 group by 关键字,对,每一组进行聚合函数计算:
+			// 1. 列的值并没有重复, 原来是多少行就还是多少行;
+			// 2. 列的值出现了重复, 重复的行需进行重叠分组;
+			// aggMap的长度就等于 要返回的行数量;
+			for _, rows := range aggMap {
+				// 传入的每个分组的 row[];
+				// 假如没有分组, 那么每次就传入一条row;
+				// row := calc(K, v)
+				value := rows[0][pos]
+				row := calc(value, rows)
 				newRows = append(newRows, row)
 			}
 		} else {
@@ -111,7 +137,7 @@ func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
 			newRows = append(newRows, row)
 		}
 		return &types.ScanTableResult{
-			Columns: newCols,
+			Columns: newColNames,
 			Rows:    newRows,
 		}
 	default:
@@ -126,6 +152,7 @@ type Calculator interface {
 }
 
 func BuildCal(funcName string) Calculator {
+	funcName = strings.ToUpper(funcName)
 	if funcName == "COUNT" {
 		return &CountCal{}
 	} else if funcName == "SUM" {
@@ -137,7 +164,7 @@ func BuildCal(funcName string) Calculator {
 	} else if funcName == "MIN" {
 		return &MinCal{}
 	} else {
-		util.Error("AggregateExecutor.BuildCal: not support function name")
+		util.Error("AggregateExecutor.BuildCal: not support function name : %s \n", funcName)
 	}
 	return nil
 }
@@ -150,6 +177,7 @@ func (c *CountCal) Calc(colName string, cols []string, rows []types.Row) types.V
 	for i, col := range cols {
 		if col == colName {
 			pos = i
+			break
 		}
 	}
 	if pos == -1 {
@@ -162,7 +190,7 @@ func (c *CountCal) Calc(colName string, cols []string, rows []types.Row) types.V
 	count := 0
 	nullVal := &types.ConstNull{}
 	for _, row := range rows {
-		if row[pos] != nullVal {
+		if bytes.Compare(row[pos].Bytes(), nullVal.Bytes()) != 0 {
 			count++
 		}
 	}
@@ -177,6 +205,7 @@ func (s *SumCal) Calc(colName string, cols []string, rows []types.Row) types.Val
 	for i, col := range cols {
 		if col == colName {
 			pos = i
+			break
 		}
 	}
 	if pos == -1 {
@@ -226,6 +255,7 @@ func (m *MaxCal) Calc(colName string, cols []string, rows []types.Row) types.Val
 	for i, col := range cols {
 		if col == colName {
 			pos = i
+			break
 		}
 	}
 	if pos == -1 {
@@ -235,20 +265,23 @@ func (m *MaxCal) Calc(colName string, cols []string, rows []types.Row) types.Val
 	// 1 X     NULL
 	// 2 NULL  6.4
 	// 3 Z     1.5
-	miaxVal := &types.ConstNull{}
+	nullVal := &types.ConstNull{}
 	values := make([]types.Value, 0)
 	for _, row := range rows {
-		if row[pos] != miaxVal {
+		if bytes.Compare(row[pos].Bytes(), nullVal.Bytes()) != 0 {
 			values = append(values, row[pos])
 		}
 	}
 	if len(values) != 0 {
 		sort.Slice(values, func(i, j int) bool {
-			return values[i].Compare(values[j]) == -1
+			if ok, cmp := values[i].PartialCmp(values[j]); ok {
+				return cmp == -1
+			}
+			return false
 		})
 		return values[len(values)-1]
 	}
-	return miaxVal
+	return nullVal
 }
 
 type MinCal struct {
@@ -259,6 +292,7 @@ func (m *MinCal) Calc(colName string, cols []string, rows []types.Row) types.Val
 	for i, col := range cols {
 		if col == colName {
 			pos = i
+			break
 		}
 	}
 	if pos == -1 {
@@ -268,18 +302,21 @@ func (m *MinCal) Calc(colName string, cols []string, rows []types.Row) types.Val
 	// 1 X     NULL
 	// 2 NULL  6.4
 	// 3 Z     1.5
-	minVal := &types.ConstNull{}
+	nullVal := &types.ConstNull{}
 	values := make([]types.Value, 0)
 	for _, row := range rows {
-		if row[pos] != minVal {
+		if bytes.Compare(row[pos].Bytes(), nullVal.Bytes()) != 0 {
 			values = append(values, row[pos])
 		}
 	}
 	if len(values) != 0 {
 		sort.Slice(values, func(i, j int) bool {
-			return values[i].Compare(values[j]) == -1
+			if ok, cmp := values[i].PartialCmp(values[j]); ok {
+				return cmp == -1
+			}
+			return false
 		})
 		return values[0]
 	}
-	return minVal
+	return nullVal
 }

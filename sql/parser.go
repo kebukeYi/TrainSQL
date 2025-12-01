@@ -351,7 +351,7 @@ func (p *Parser) parseInsert() Statement {
 }
 func (p *Parser) parseSelect() Statement {
 	selectData := &SelectData{}
-	selectData.SelectCol = p.parseSelectClause()
+	selectData.SelectCols = p.parseSelectClause()
 	selectData.From = p.parseFromClause()
 	selectData.WhereClause = p.parseWhereClause()
 	selectData.GroupBy = p.parseGroupByClause()
@@ -362,26 +362,28 @@ func (p *Parser) parseSelect() Statement {
 	return selectData
 }
 
-func (p *Parser) parseSelectClause() map[*types.Expression]string {
+func (p *Parser) parseSelectClause() []*SelectCol {
 	p.nextExpect(&Token{Type: KEYWORD, Value: Select})
-	selectCol := make(map[*types.Expression]string)
+	SeqSelectCol := make([]*SelectCol, 0)
 	if token := p.nextIfToken(&Token{Type: ASTERISK, Value: Asterisk}); token != nil {
-		return selectCol
+		return SeqSelectCol
 	}
 	for {
 		expression := p.parseExpression()
+		selectCol := &SelectCol{Expr: expression}
 		if token := p.nextIfToken(&Token{Type: KEYWORD, Value: As}); token != nil {
-			selectCol[expression] = p.nextIdent()
+			selectCol.Alis = p.nextIdent()
 		} else {
-			selectCol[expression] = ""
+			selectCol.Alis = ""
 		}
+		SeqSelectCol = append(SeqSelectCol, selectCol)
 		if token := p.nextIfToken(&Token{Type: COMMA, Value: Comma}); token != nil {
 			continue
 		} else {
 			break
 		}
 	}
-	return selectCol
+	return SeqSelectCol
 }
 func (p *Parser) parseFromClause() FromItem {
 	// From 关键字

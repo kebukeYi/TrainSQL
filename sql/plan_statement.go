@@ -25,15 +25,15 @@ func (c *CreatTableData) Statement() types.ResultSet {
 		con := column.DefaultValue.ConstVal
 		switch con.(type) {
 		case *types.ConstInt:
-			fmt.Print("default value:", con.(*types.ConstInt).Value)
+			fmt.Printf("default value: %d ", con.(*types.ConstInt).Into())
 		case *types.ConstFloat:
-			fmt.Print("default value:", con.(*types.ConstFloat).Value)
+			fmt.Printf("default value:%f ", con.(*types.ConstFloat).Into())
 		case *types.ConstString:
-			fmt.Print("default value:", con.(*types.ConstString).Value)
+			fmt.Printf("default value:%s ", con.(*types.ConstString).Into())
 		case *types.ConstBool:
-			fmt.Print("default value:", con.(*types.ConstBool).Value)
+			fmt.Printf("default value: %v ", con.(*types.ConstBool).Into())
 		case *types.ConstNull:
-			fmt.Print("default value:", con.(*types.ConstNull).Value)
+			fmt.Printf("default value: %s ", con.(*types.ConstNull).Into())
 		}
 		fmt.Println()
 	}
@@ -60,19 +60,18 @@ func (i *InsertData) Statement() types.ResultSet {
 	// 每行
 	for _, value := range i.Values {
 		for _, expression := range value {
-			//fmt.Printf("%s   ", i.Columns[id])
 			con := expression.ConstVal
 			switch con.(type) {
 			case *types.ConstInt:
-				fmt.Printf("%d   ", con.(*types.ConstInt).Value)
+				fmt.Printf("%d   ", con.(*types.ConstInt).Into())
 			case *types.ConstFloat:
-				fmt.Printf("%f   ", con.(*types.ConstFloat).Value)
+				fmt.Printf("%f   ", con.(*types.ConstFloat).Into())
 			case *types.ConstString:
-				fmt.Printf("%s   ", con.(*types.ConstString).Value)
+				fmt.Printf("%s   ", con.(*types.ConstString).Into())
 			case *types.ConstBool:
-				fmt.Printf("%v   ", con.(*types.ConstBool).Value)
+				fmt.Printf("%v   ", con.(*types.ConstBool).Into())
 			case *types.ConstNull:
-				fmt.Printf("%v   ", con.(*types.ConstNull).Value)
+				fmt.Printf("%s   ", con.(*types.ConstNull).Into())
 			}
 		}
 		fmt.Println()
@@ -99,8 +98,13 @@ func (u *UpdateData) Statement() types.ResultSet {
 	return nil
 }
 
+type SelectCol struct {
+	Expr *types.Expression
+	Alis string
+}
+
 type SelectData struct {
-	SelectCol   map[*types.Expression]string
+	SelectCols  []*SelectCol
 	From        FromItem
 	WhereClause *types.Expression
 	GroupBy     *types.Expression

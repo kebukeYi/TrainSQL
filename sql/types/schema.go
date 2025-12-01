@@ -73,7 +73,7 @@ type ColumnV struct {
 }
 
 func (c *ColumnV) ToString() string {
-	col_desc := fmt.Sprintf("%s %s", c.Name, c.DataType)
+	col_desc := fmt.Sprintf("%s %d", c.Name, c.DataType)
 	if c.PrimaryKey {
 		col_desc += " PRIMARY KEY"
 	}

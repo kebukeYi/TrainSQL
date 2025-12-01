@@ -201,6 +201,7 @@ func InitWord() map[string]*Token {
 		"LIMIT":    NewToken(KEYWORD, Limit),
 		"OFFSET":   NewToken(KEYWORD, Offset),
 		"GROUP":    NewToken(KEYWORD, Group),
+		"BY":       NewToken(KEYWORD, By),
 		"HAVING":   NewToken(KEYWORD, Having),
 		"ORDER":    NewToken(KEYWORD, Order),
 	}

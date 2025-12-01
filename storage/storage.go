@@ -1,5 +1,10 @@
 package storage
 
+import (
+	"bytes"
+	"github.com/google/btree"
+)
+
 type RangeBounds struct {
 	StartKey []byte
 	EndKey   []byte
@@ -8,6 +13,13 @@ type RangeBounds struct {
 type ResultPair struct {
 	Key   []byte
 	Value []byte
+}
+
+func (r *ResultPair) Less(item btree.Item) bool {
+	if item == nil {
+		return false
+	}
+	return bytes.Compare(r.Key, item.(*ResultPair).Key) < 0
 }
 
 func (receiver *ResultPair) ToString() string {

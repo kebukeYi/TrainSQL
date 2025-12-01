@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/binary"
+	"github.com/google/btree"
 	"github.com/kebukeYi/TrainSQL/sql/util"
 	"math"
 )
@@ -241,25 +242,27 @@ func (t *Transaction) ScanPrefix(keyPrefix []byte, needValue bool) []ResultPair 
 	// keyVersionKey: KeyVersion_key1
 	keyVersionKey := GetPrefixKeyVersionKey(keyPrefix)
 	// pair: [KeyVersion_row_user_version, value]
+	// 无序key;
 	resultPairs := t.storage.ScanPrefix(keyVersionKey, needValue)
 	newResultPairs := make([]ResultPair, 0)
+	bTree := btree.New(3) // 树高为3;
 	for _, pair := range resultPairs {
-		// 会将 TenActive_ 前缀的 key 过滤掉;
-		// 删除 也相当于 写入了新值, 不过这个新值是 nil;
-		//if pair.Value == nil || len(pair.Value) == 0 {
-		//	continue
-		//}
 		version := SplitKeyVersion(pair.Key)
 		if t.transactionState.isVisible(version) {
 			// pair.Key: KeyVersion_Row_user_version(8字节)
 			// rawKey: key1
 			rawKey := GetRawKeyFromKeyVersion(pair.Key)
-			r := ResultPair{
+			r := &ResultPair{
 				Key:   rawKey,
 				Value: pair.Value,
 			}
-			newResultPairs = append(newResultPairs, r)
+			// 有序key
+			bTree.ReplaceOrInsert(r)
 		}
-	}
+	} // for over
+	bTree.Ascend(func(item btree.Item) bool {
+		newResultPairs = append(newResultPairs, *item.(*ResultPair))
+		return true
+	})
 	return newResultPairs
 }

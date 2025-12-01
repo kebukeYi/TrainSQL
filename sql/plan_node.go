@@ -86,7 +86,8 @@ func (o *OffsetNode) node() {}
 
 type ProjectNode struct {
 	Source Node
-	Exprs  map[*types.Expression]string
+	//Exprs  map[*types.Expression]string
+	Exprs []*SelectCol
 }
 
 func (p *ProjectNode) node() {
@@ -114,7 +115,7 @@ func (h *HashJoinNode) node() {
 
 type AggregateNode struct {
 	Source  Node
-	Exprs   map[*types.Expression]string
+	Exprs   []*SelectCol
 	GroupBy *types.Expression
 }
 

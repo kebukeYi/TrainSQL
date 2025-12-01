@@ -230,6 +230,7 @@ func (le *Lexer) scanIdent() *Token {
 	})
 	idnet = append(idnet, idnet2...)
 	value := strings.ToUpper(string(idnet))
+	// 如果是关键字, 则转为大写; 否则原样返回;
 	if tokenValue, ok := le.keyWords[value]; ok {
 		token.Type = tokenValue.Type
 		token.Value = tokenValue.Value

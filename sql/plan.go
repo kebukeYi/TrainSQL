@@ -62,10 +62,10 @@ func (p *Plan) BuildNode(ast Statement) Node {
 		node = p.BuildFromItem(selectData.From, selectData.WhereClause)
 		hasAgg := false
 		// aggregate、group by
-		if selectData.SelectCol != nil || len(selectData.SelectCol) != 0 {
-			for expr, _ := range selectData.SelectCol {
+		if selectData.SelectCols != nil || len(selectData.SelectCols) != 0 {
+			for _, selectCol := range selectData.SelectCols {
 				// 如果是 Function，说明是 agg
-				if expr.Function != nil {
+				if selectCol.Expr.Function != nil {
 					hasAgg = true
 					break
 				}
@@ -76,7 +76,7 @@ func (p *Plan) BuildNode(ast Statement) Node {
 			if hasAgg {
 				node = &AggregateNode{
 					Source:  node,
-					Exprs:   selectData.SelectCol,
+					Exprs:   selectData.SelectCols,
 					GroupBy: selectData.GroupBy,
 				}
 			}
@@ -113,10 +113,11 @@ func (p *Plan) BuildNode(ast Statement) Node {
 				Limit:  int(constInt.Value),
 			}
 		}
-		if len(selectData.SelectCol) != 0 && !hasAgg {
+
+		if len(selectData.SelectCols) != 0 && !hasAgg {
 			node = &ProjectNode{
 				Source: node,
-				Exprs:  selectData.SelectCol,
+				Exprs:  selectData.SelectCols,
 			}
 		}
 	case *UpdateData:
