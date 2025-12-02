@@ -3,6 +3,7 @@ package sql
 import (
 	"github.com/kebukeYi/TrainSQL/sql/types"
 	"github.com/kebukeYi/TrainSQL/sql/util"
+	"strings"
 )
 
 type Session struct {
@@ -39,6 +40,24 @@ func (s *Session) Execute(sqlStr string) types.ResultSet {
 			s.Service = nil
 			return &types.RollbackResult{Version: int(version)}
 		case *ExplainData:
+			sourceStatement := statement.(*ExplainData)
+			if s.Service != nil {
+				plan := NewPlan(sourceStatement, s.Service)
+				node := plan.BuildNode()
+				explain := s.Explain(node)
+				return &types.ExplainResult{
+					Plan: explain,
+				}
+			} else {
+				service := s.Server.Begin()
+				plan := NewPlan(sourceStatement, service)
+				node := plan.BuildNode()
+				explain := s.Explain(node)
+				service.Commit()
+				return &types.ExplainResult{
+					Plan: explain,
+				}
+			}
 		default:
 			// 前面手动 begin 起来的事务;随后的sql会进入到这分支;
 			if s.Service != nil {
@@ -96,4 +115,10 @@ func (s *Session) ShowTableNames() string {
 		service.Commit()
 	}
 	return util.Join(names, ",")
+}
+
+func (s *Session) Explain(node Node) string {
+	var builder strings.Builder
+	node.FormatNode(&builder, "", true)
+	return builder.String()
 }

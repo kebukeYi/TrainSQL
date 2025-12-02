@@ -33,6 +33,26 @@ type Expression struct {
 	Function     *Function
 }
 
+func (e *Expression) ToString() string {
+	if e.Field != "" {
+		return fmt.Sprintf("%s", e.Field)
+	} else if e.Function != nil {
+		return fmt.Sprintf("%s(%s)", e.Function.FuncName, e.Function.ColName)
+	} else if e.OperationVal != nil {
+		switch e.OperationVal.(type) {
+		case *OperationEqual:
+			return fmt.Sprintf("%s = %s", e.OperationVal.(*OperationEqual).Left.ToString(), e.OperationVal.(*OperationEqual).Right.ToString())
+		case *OperationGreaterThan:
+			return fmt.Sprintf("%s > %s", e.OperationVal.(*OperationGreaterThan).Left.ToString(), e.OperationVal.(*OperationGreaterThan).Right.ToString())
+		case *OperationLessThan:
+			return fmt.Sprintf("%s < %s", e.OperationVal.(*OperationLessThan).Left.ToString(), e.OperationVal.(*OperationLessThan).Right.ToString())
+		}
+	} else if e.ConstVal != nil {
+		return fmt.Sprintf("%s", e.ConstVal.Bytes())
+	}
+	return ""
+}
+
 func EvaluateExpr(expr *Expression, lcols []string, lrows []Value, rcols []string, rrows []Value) Value {
 	// 假如字段类型不为空, 那就默认获取左表字段值;
 	// note:仅仅解析第一对参数值, 所以以后传参只传第一对即;
@@ -44,7 +64,7 @@ func EvaluateExpr(expr *Expression, lcols []string, lrows []Value, rcols []strin
 			}
 		}
 		if lpos == -1 {
-			util.Error("HashJoinExecutor: can not find join field in left")
+			util.Error("#EvaluateExpr: can not find join field in left")
 		}
 		return lrows[lpos]
 	}
@@ -301,7 +321,7 @@ func NewConstBool(value bool) *ConstBool {
 	return &ConstBool{Value: value}
 }
 func (b *ConstBool) Bytes() []byte {
-	if b.Value {
+	if b.Value { // // 布尔值转换为单个字节
 		return []byte("true")
 	}
 	return []byte("false")
@@ -389,25 +409,92 @@ func (i *InsertTableResult) ToString() string {
 	return fmt.Sprintf("INSERT %d rows", i.Count)
 }
 
+// FormatScanResult 格式化扫描结果
+func FormatScanResult(columns []string, rows []Row) string {
+	if len(rows) == 0 {
+		return fmt.Sprintf("%s\n%s\n(0 rows)", formatColumns(columns, make([]int, len(columns))),
+			formatSeparator(make([]int, len(columns))))
+	}
+
+	// 找到每一列最大的长度
+	maxLen := make([]int, len(columns))
+	for i, col := range columns {
+		maxLen[i] = len(col)
+	}
+	// 遍历所有行，更新最大长度
+	for _, row := range rows {
+		for i, value := range row {
+			if len(value.Bytes()) > maxLen[i] {
+				maxLen[i] = len(value.Bytes())
+			}
+		}
+	}
+
+	// 格式化列名
+	formattedColumns := formatColumns(columns, maxLen)
+
+	// 生成分隔线
+	separator := formatSeparator(maxLen)
+
+	// 格式化行数据
+	formattedRows := formatRows(rows, maxLen)
+
+	// 组合最终结果
+	return fmt.Sprintf("%s\n%s\n%s\n(%d rows)",
+		formattedColumns, separator, formattedRows, len(rows))
+}
+
+// formatColumns 格式化列名
+func formatColumns(columns []string, maxLen []int) string {
+	formatted := make([]string, len(columns))
+	for i, col := range columns {
+		// 使用左对齐，宽度为 maxLen[i]
+		formatted[i] = fmt.Sprintf("%-*s", maxLen[i], col)
+	}
+	return strings.Join(formatted, " |")
+}
+
+// formatSeparator 生成分隔线
+func formatSeparator(maxLen []int) string {
+	separators := make([]string, len(maxLen))
+	for i, length := range maxLen {
+		// 生成 length+1 个横线
+		separators[i] = strings.Repeat("-", length+1)
+	}
+	return strings.Join(separators, "+")
+}
+
+// formatRows 格式化行数据
+func formatRows(rows []Row, maxLen []int) string {
+	formattedRows := make([]string, len(rows))
+	for rowIdx, row := range rows {
+		cells := make([]string, len(row))
+		for i, value := range row {
+			strValue := string(value.Bytes())
+			// 使用左对齐，宽度为 maxLen[i]
+			cells[i] = fmt.Sprintf("%-*s", maxLen[i], strValue)
+		}
+		formattedRows[rowIdx] = strings.Join(cells, " |")
+	}
+	return strings.Join(formattedRows, "\n")
+}
+
 type ScanTableResult struct {
 	Columns []string
 	Rows    []Row
 }
 
+func RowsToString(row Row) string {
+	var buf strings.Builder
+	for _, value := range row {
+		buf.WriteString(string(value.Bytes()))
+		buf.WriteString(" |")
+	}
+	return buf.String()
+}
+
 func (s *ScanTableResult) ToString() string {
-	fmt.Println("ScanTableResult:")
-	for _, column := range s.Columns {
-		fmt.Print(column)
-		fmt.Print("  ")
-	}
-	fmt.Println()
-	for _, row := range s.Rows {
-		for _, value := range row {
-			fmt.Printf("%s         ", value.Bytes())
-		}
-		fmt.Println()
-	}
-	return ""
+	return FormatScanResult(s.Columns, s.Rows)
 }
 
 type UpdateTableResult struct {
@@ -432,7 +519,6 @@ type BeginResult struct {
 
 func (b *BeginResult) ToString() string {
 	return fmt.Sprintf("TRANSACTION %d BEGIN", b.Version)
-
 }
 
 type ExplainResult struct {

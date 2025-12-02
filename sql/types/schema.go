@@ -24,8 +24,12 @@ func (t *Table) Validate() {
 			util.Error("[Table] %s column %s can not be nullable", t.Name, column.Name)
 		}
 		if column.DefaultValue != nil {
+			// 尽管列的定义是 int string bool, float, 但是仍允许列为 默认值为  NULL;
+			if column.DefaultValue.DateType() == Null {
+				continue
+			}
 			if column.DefaultValue.DateType() != column.DataType {
-				util.Error("[Table] %s column %s default value type not match", t.Name, column.Name)
+				util.Error("[Table] %s column %s default value type %d not match %d", t.Name, column.Name, column.DefaultValue.DateType(), column.DataType)
 			}
 		}
 	}

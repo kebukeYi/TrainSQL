@@ -105,6 +105,8 @@ func (p *Parser) parseStatement() Statement {
 				return p.parseTransaction()
 			case Rollback:
 				return p.parseTransaction()
+			case Explain:
+				return p.parseExplain()
 			default:
 				panic("unhandled default case")
 			}
@@ -234,7 +236,7 @@ func (p *Parser) parseDdlColumn() *types.Column {
 	filedName := p.nextIdent()
 	dataTypeToken := p.next()
 	if dataTypeToken == nil || dataTypeToken.Type != KEYWORD {
-		panic("dataType is not nil")
+		util.Error("[Parser] #parseDdlColumn: Expect data type, but got %s\n", dataTypeToken.ToString())
 	}
 	dataType := p.parserDataType(dataTypeToken)
 	column := &types.Column{
@@ -272,6 +274,7 @@ func (p *Parser) parseDdlColumn() *types.Column {
 	return column
 }
 func (p *Parser) parserDataType(token *Token) types.DataType {
+	// todo 根据输入字符串来定义数据类型;
 	switch token.Value {
 	case Int:
 		return types.Integer
@@ -404,7 +407,7 @@ func (p *Parser) parseFromClause() FromItem {
 			} else {
 				p.nextExpect(&Token{Type: KEYWORD, Value: On})
 				l := p.parseExpression()
-				p.nextExpect(&Token{Type: KEYWORD, Value: Equal})
+				p.nextExpect(&Token{Type: EQUAL, Value: Equal})
 				r := p.parseExpression()
 				if joinType == RightType {
 					l, r = r, l
@@ -460,26 +463,29 @@ func (p *Parser) parseHavingClause() *types.Expression {
 	return nil
 
 }
-func (p *Parser) parseOrderByClause() map[string]OrderDirection {
+func (p *Parser) parseOrderByClause() []*OrderDirection {
 	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Order}); token == nil {
 		return nil
 	}
-	orders := make(map[string]OrderDirection)
+	orders := make([]*OrderDirection, 0)
 	p.nextExpect(&Token{Type: KEYWORD, Value: By})
 	for {
 		col := p.nextIdent()
 		token := p.nextIf(func(token *Token) bool {
 			return token.equal(&Token{Type: KEYWORD, Value: Asc}) || token.equal(&Token{Type: KEYWORD, Value: Desc})
 		})
+		orderDirection := &OrderDirection{colName: col}
 		if token != nil {
-			orders[col] = OrderAsc
 			if token.equal(&Token{Type: KEYWORD, Value: Asc}) {
-				orders[col] = OrderAsc
+				orderDirection.direction = OrderAsc
 			} else {
-				orders[col] = OrderDesc
+				orderDirection.direction = OrderDesc
 			}
+		} else {
+			orderDirection.direction = OrderAsc
 		}
-		if token := p.nextIfToken(&Token{Type: COMMA, Value: Comma}); token != nil {
+		orders = append(orders, orderDirection)
+		if token = p.nextIfToken(&Token{Type: COMMA, Value: Comma}); token != nil {
 			continue
 		} else {
 			break
@@ -505,8 +511,10 @@ func (p *Parser) parseDelete() Statement {
 	p.nextExpect(&Token{Type: KEYWORD, Value: Delete})
 	p.nextExpect(&Token{Type: KEYWORD, Value: From})
 	tableName := p.nextIdent()
+	whereClause := p.parseWhereClause()
 	return &DeleteData{
-		TableName: tableName,
+		TableName:   tableName,
+		WhereClause: whereClause,
 	}
 
 }
@@ -599,6 +607,7 @@ func (p *Parser) parseExplain() Statement {
 			util.Error("can not nest explain statement")
 		}
 	}
+	// source Node
 	statement := p.parseStatement()
 	return &ExplainData{
 		Statements: statement,

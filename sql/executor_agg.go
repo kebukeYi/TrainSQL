@@ -48,7 +48,7 @@ func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
 					// 如果函数列 > 列数;
 					if len(agg.SeqExprs) > len(newColNames) {
 						if alias == "" {
-							defaultColName := expression.Function.FuncName + "(" + expression.Function.ColName + ")"
+							defaultColName := expression.Function.FuncName + "_" + expression.Function.ColName
 							newColNames = append(newColNames, defaultColName)
 						} else {
 							newColNames = append(newColNames, alias)

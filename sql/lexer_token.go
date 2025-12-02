@@ -32,11 +32,10 @@ const (
 	Create  TokenValue = "CREATE"
 	Table   TokenValue = "TABLE"
 	Index   TokenValue = "INDEX"
-	View    TokenValue = "VIEW"
 	Int     TokenValue = "INT"
 	Integer TokenValue = "INTEGER"
-	Boolean TokenValue = "BOOL"
-	Bool    TokenValue = "BOOLEAN"
+	Boolean TokenValue = "BOOLEAN"
+	Bool    TokenValue = "BOOL"
 	String  TokenValue = "STRING"
 	Text    TokenValue = "TEXT"
 	Varchar TokenValue = "VARCHAR"
@@ -161,48 +160,59 @@ func (t *Token) ToString() string {
 
 func InitWord() map[string]*Token {
 	return map[string]*Token{
-		"CREATE":   NewToken(KEYWORD, Create),
-		"TABLE":    NewToken(KEYWORD, Table),
-		"KEY":      NewToken(KEYWORD, Key),
-		"PRIMARY":  NewToken(KEYWORD, Primary),
-		"INSERT":   NewToken(KEYWORD, Insert),
-		"INTO":     NewToken(KEYWORD, Into),
-		"VALUES":   NewToken(KEYWORD, Values),
-		"SELECT":   NewToken(KEYWORD, Select),
-		"FROM":     NewToken(KEYWORD, From),
-		"UPDATE":   NewToken(KEYWORD, Update),
-		"SET":      NewToken(KEYWORD, Set),
-		"WHERE":    NewToken(KEYWORD, Where),
-		"DELETE":   NewToken(KEYWORD, Delete),
-		"DROP":     NewToken(KEYWORD, Drop),
-		"INT":      NewToken(KEYWORD, Int),
-		"BOOL":     NewToken(KEYWORD, Bool),
-		"INTEGER":  NewToken(KEYWORD, Integer),
-		"BOOLEAN":  NewToken(KEYWORD, Boolean),
-		"VARCHAR":  NewToken(KEYWORD, Varchar),
-		"FLOAT":    NewToken(KEYWORD, Float),
-		"DOUBLE":   NewToken(KEYWORD, Double),
-		"NULL":     NewToken(KEYWORD, Null),
-		"NOT":      NewToken(KEYWORD, Not),
-		"DEFAULT":  NewToken(KEYWORD, Default),
-		"TRUE":     NewToken(KEYWORD, True),
-		"FALSE":    NewToken(KEYWORD, False),
+		"CREATE": NewToken(KEYWORD, Create),
+		"TABLE":  NewToken(KEYWORD, Table),
+
+		"PRIMARY": NewToken(KEYWORD, Primary),
+		"KEY":     NewToken(KEYWORD, Key),
+
+		"INSERT": NewToken(KEYWORD, Insert),
+		"INTO":   NewToken(KEYWORD, Into),
+		"VALUES": NewToken(KEYWORD, Values),
+		"SELECT": NewToken(KEYWORD, Select),
+		"FROM":   NewToken(KEYWORD, From),
+		"UPDATE": NewToken(KEYWORD, Update),
+		"SET":    NewToken(KEYWORD, Set),
+		"WHERE":  NewToken(KEYWORD, Where),
+		"DELETE": NewToken(KEYWORD, Delete),
+		"DROP":   NewToken(KEYWORD, Drop),
+
+		"INT":     NewToken(KEYWORD, Int),
+		"BOOL":    NewToken(KEYWORD, Bool),
+		"INTEGER": NewToken(KEYWORD, Integer),
+		"BOOLEAN": NewToken(KEYWORD, Boolean),
+		"VARCHAR": NewToken(KEYWORD, Varchar),
+		"CHAR":    NewToken(KEYWORD, Char),
+		"FLOAT":   NewToken(KEYWORD, Float),
+		"DOUBLE":  NewToken(KEYWORD, Double),
+		"STRING":  NewToken(KEYWORD, String),
+		"TEXT":    NewToken(KEYWORD, Text),
+
+		"NULL":    NewToken(KEYWORD, Null),
+		"NOT":     NewToken(KEYWORD, Not),
+		"DEFAULT": NewToken(KEYWORD, Default),
+		"TRUE":    NewToken(KEYWORD, True),
+		"FALSE":   NewToken(KEYWORD, False),
+
 		"BEGIN":    NewToken(KEYWORD, Begin),
 		"COMMIT":   NewToken(KEYWORD, Commit),
 		"ROLLBACK": NewToken(KEYWORD, Rollback),
 		"EXPLAIN":  NewToken(KEYWORD, Explain),
 		"INDEX":    NewToken(KEYWORD, Index),
-		"VIEW":     NewToken(KEYWORD, View),
-		"CHAR":     NewToken(KEYWORD, Char),
-		"ON":       NewToken(KEYWORD, On),
-		"ASC":      NewToken(KEYWORD, Asc),
-		"AS":       NewToken(KEYWORD, As),
-		"DESC":     NewToken(KEYWORD, Desc),
-		"LIMIT":    NewToken(KEYWORD, Limit),
-		"OFFSET":   NewToken(KEYWORD, Offset),
-		"GROUP":    NewToken(KEYWORD, Group),
-		"BY":       NewToken(KEYWORD, By),
-		"HAVING":   NewToken(KEYWORD, Having),
-		"ORDER":    NewToken(KEYWORD, Order),
+
+		"ON":     NewToken(KEYWORD, On),
+		"ASC":    NewToken(KEYWORD, Asc),
+		"AS":     NewToken(KEYWORD, As),
+		"DESC":   NewToken(KEYWORD, Desc),
+		"LIMIT":  NewToken(KEYWORD, Limit),
+		"OFFSET": NewToken(KEYWORD, Offset),
+		"GROUP":  NewToken(KEYWORD, Group),
+		"BY":     NewToken(KEYWORD, By),
+		"HAVING": NewToken(KEYWORD, Having),
+		"ORDER":  NewToken(KEYWORD, Order),
+		"CROSS":  NewToken(KEYWORD, Cross),
+		"JOIN":   NewToken(KEYWORD, Join),
+		"LEFT":   NewToken(KEYWORD, Left),
+		"RIGHT":  NewToken(KEYWORD, Right),
 	}
 }

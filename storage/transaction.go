@@ -249,18 +249,27 @@ func (t *Transaction) ScanPrefix(keyPrefix []byte, needValue bool) []ResultPair 
 	for _, pair := range resultPairs {
 		version := SplitKeyVersion(pair.Key)
 		if t.transactionState.isVisible(version) {
-			// pair.Key: KeyVersion_Row_user_version(8字节)
-			// rawKey: key1
-			rawKey := GetRawKeyFromKeyVersion(pair.Key)
-			r := &ResultPair{
-				Key:   rawKey,
-				Value: pair.Value,
+			// needValue 需要值 && 值为nil => 代表最新版本 是删除类型, 因此需要将内存中的旧版本数据进行删除;
+			// 但是 获得 所有的活跃事务, 以及所有的表名, 那就是属于 不需要值的;
+			if needValue && (len(pair.Value) == 0 || pair.Value == nil) {
+				pair.Key = GetRawKeyFromKeyVersion(pair.Key)
+				bTree.Delete(pair)
+			} else {
+				// 如果有值,就进行添加更新, 只保留key的可见最高版本数据;
+				// pair.Key: KeyVersion_Row_user_version(8字节)
+				// rowKey: key1
+				rowKey := GetRawKeyFromKeyVersion(pair.Key)
+				r := &ResultPair{
+					Key:   rowKey,
+					Value: pair.Value,
+				}
+				// 有序key
+				bTree.ReplaceOrInsert(r)
 			}
-			// 有序key
-			bTree.ReplaceOrInsert(r)
 		}
 	} // for over
 	bTree.Ascend(func(item btree.Item) bool {
+		// 按照 key(主键||索引键) 有序返回;
 		newResultPairs = append(newResultPairs, *item.(*ResultPair))
 		return true
 	})

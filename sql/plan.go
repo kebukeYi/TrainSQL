@@ -17,13 +17,15 @@ func NewPlan(ast Statement, service Service) *Plan {
 	return plan
 }
 func (p *Plan) Execute() types.ResultSet {
-	p.node = p.BuildNode(p.ast)
+	p.node = p.BuildNode()
 	executor := p.BuildExecutor(p.node)
 	resultSet := executor.Execute(p.Service)
 	return resultSet
 }
-func (p *Plan) BuildNode(ast Statement) Node {
+func (p *Plan) BuildNode() Node {
 	var node Node
+	var ast Statement
+	ast = p.ast
 	switch ast.(type) {
 	case *CreatTableData:
 		columnVs := make([]types.ColumnV, 0)
@@ -87,12 +89,14 @@ func (p *Plan) BuildNode(ast Statement) Node {
 				Predicate: selectData.Having,
 			}
 		}
+
 		if selectData.OrderBy != nil || len(selectData.OrderBy) > 0 {
 			node = &OrderNode{
 				Source:  node,
 				OrderBy: selectData.OrderBy,
 			}
 		}
+
 		if selectData.Offset != nil {
 			constInt, ok := selectData.Offset.ConstVal.(*types.ConstInt)
 			if !ok {
@@ -103,6 +107,7 @@ func (p *Plan) BuildNode(ast Statement) Node {
 				Offset: int(constInt.Value),
 			}
 		}
+
 		if selectData.Limit != nil {
 			constInt, ok := selectData.Limit.ConstVal.(*types.ConstInt)
 			if !ok {
@@ -231,7 +236,7 @@ func (p *Plan) BuildExecutor(node Node) Executor {
 func (p *Plan) buildScan(tableName string, whereClause *types.Expression) Node {
 	scanFilter := p.parseScanFilter(whereClause)
 	if scanFilter != nil {
-		table := p.Service.MustGetTable(scanFilter.field)
+		table := p.Service.MustGetTable(tableName)
 		if table == nil {
 			return nil
 		}

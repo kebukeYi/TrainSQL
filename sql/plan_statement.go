@@ -109,7 +109,7 @@ type SelectData struct {
 	WhereClause *types.Expression
 	GroupBy     *types.Expression
 	Having      *types.Expression
-	OrderBy     map[string]OrderDirection
+	OrderBy     []*OrderDirection
 	Limit       *types.Expression
 	Offset      *types.Expression
 }

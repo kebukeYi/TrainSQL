@@ -18,8 +18,8 @@ func NewServer(sto storage.Storage) *ServerManager {
 		txnManager: storage.NewTransactionManager(sto),
 	}
 }
-func (s *ServerManager) Session() Session {
-	return Session{
+func (s *ServerManager) Session() *Session {
+	return &Session{
 		Server: s,
 	}
 }

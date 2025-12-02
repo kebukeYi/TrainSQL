@@ -35,6 +35,6 @@ type Storage interface {
 	//Scan [greaterOrEqual, lessThan)
 	Scan(bounds *RangeBounds) []*ResultPair
 	// ScanPrefix [^prefix]
-	ScanPrefix(keyPrefix []byte, isValue bool) []*ResultPair
+	ScanPrefix(keyPrefix []byte, needValue bool) []*ResultPair
 	Close() error
 }

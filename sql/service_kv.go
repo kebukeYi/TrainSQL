@@ -81,7 +81,11 @@ func (s *KVService) ScanTable(tableName string, filter *types.Expression) []type
 	rows := make([]types.Row, 0)
 	for _, resultPair := range resultPairs {
 		row := types.Row{}
-		decoder := gob.NewDecoder(bytes.NewReader(resultPair.Value))
+		value := resultPair.Value
+		if len(value) == 0 || value == nil {
+			continue
+		}
+		decoder := gob.NewDecoder(bytes.NewReader(value))
 		if err := decoder.Decode(&row); err != nil {
 			util.Error("decode row error")
 		}
@@ -269,7 +273,8 @@ func (s *KVService) GetTableNames() []string {
 		//if err := decoder.Decode(&table); err != nil {
 		//	util.Error("decode table error")
 		//}
-		names = append(names, string(pair.Key))
+		rawKey := GetTableName(pair.Key)
+		names = append(names, string(rawKey))
 	}
 	return names
 }
@@ -284,6 +289,9 @@ func (s *KVService) Rollback() {
 }
 func GetTableNameKey(tableName string) []byte {
 	return []byte(Table_ + tableName)
+}
+func GetTableName(tableNameKey []byte) []byte {
+	return tableNameKey[len(Table_):]
 }
 func GetTableNamePrefixKey() []byte {
 	return []byte(Table_)

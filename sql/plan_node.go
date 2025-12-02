@@ -1,9 +1,13 @@
 package sql
 
-import "github.com/kebukeYi/TrainSQL/sql/types"
+import (
+	"fmt"
+	"github.com/kebukeYi/TrainSQL/sql/types"
+	"strings"
+)
 
 type Node interface {
-	node()
+	FormatNode(f *strings.Builder, prefix string, root bool)
 }
 
 type UpdateNode struct {
@@ -12,22 +16,67 @@ type UpdateNode struct {
 	columns   map[string]*types.Expression
 }
 
-func (u *UpdateNode) node() {
-
+func (u *UpdateNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString(fmt.Sprintf("Update on  %s", u.TableName))
+	u.Source.FormatNode(f, prefix, false)
 }
 
 type CreateTableNode struct {
 	Schema *types.Table
 }
 
-func (c *CreateTableNode) node() {
+func (c *CreateTableNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString(fmt.Sprintf("Create Table %s", c.Schema.Name))
 }
 
 type DropTableNode struct {
 	TableName string
 }
 
-func (d *DropTableNode) node() {
+func (d *DropTableNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString(fmt.Sprintf("Drop Table %s;", d.TableName))
 }
 
 type InsertNode struct {
@@ -36,7 +85,22 @@ type InsertNode struct {
 	Values    [][]*types.Expression
 }
 
-func (i *InsertNode) node() {
+func (i *InsertNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString(fmt.Sprintf("Insert into  %s;", i.TableName))
 }
 
 type ScanNode struct {
@@ -44,7 +108,25 @@ type ScanNode struct {
 	Filter    *types.Expression
 }
 
-func (s *ScanNode) node() {
+func (s *ScanNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString(fmt.Sprintf("Seq Scan on  %s", s.TableName))
+	if s.Filter != nil {
+		f.WriteString(fmt.Sprintf(" (%s)", s.Filter.ToString()))
+	}
 }
 
 type DeleteNode struct {
@@ -52,22 +134,66 @@ type DeleteNode struct {
 	Source    Node
 }
 
-func (d *DeleteNode) node() {
+func (d *DeleteNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString(fmt.Sprintf("Delete on  %s;", d.TableName))
+	d.Source.FormatNode(f, prefix, false)
 }
 
-type OrderDirection int
+type OrderType int
 
 var (
-	OrderAsc  OrderDirection = 1
-	OrderDesc OrderDirection = 2
+	OrderAsc  OrderType = 1
+	OrderDesc OrderType = 2
 )
 
 type OrderNode struct {
 	Source  Node
-	OrderBy map[string]OrderDirection
+	OrderBy []*OrderDirection
 }
 
-func (o *OrderNode) node() {
+func (o *OrderNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	descParts := make([]string, len(o.OrderBy))
+	index := 0
+	direction := "asc"
+	for _, orderDirection := range o.OrderBy {
+		if orderDirection.direction == OrderDesc {
+			direction = "desc"
+		} else {
+			direction = "asc"
+		}
+		descParts[index] = fmt.Sprintf("%s %s", orderDirection.colName, direction)
+		index++
+	}
+	f.WriteString(fmt.Sprintf("Order By (%s)", strings.Join(descParts, ",")))
+	o.Source.FormatNode(f, prefix, false)
 }
 
 type LimitNode struct {
@@ -75,22 +201,79 @@ type LimitNode struct {
 	Limit  int
 }
 
-func (l *LimitNode) node() {}
+func (l *LimitNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString(fmt.Sprintf("Limit %d", l.Limit))
+	l.Source.FormatNode(f, prefix, false)
+}
 
 type OffsetNode struct {
 	Source Node
 	Offset int
 }
 
-func (o *OffsetNode) node() {}
+func (o *OffsetNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString(fmt.Sprintf("Offset  %d", o.Offset))
+	o.Source.FormatNode(f, prefix, false)
+}
 
 type ProjectNode struct {
 	Source Node
-	//Exprs  map[*types.Expression]string
-	Exprs []*SelectCol
+	Exprs  []*SelectCol
 }
 
-func (p *ProjectNode) node() {
+func (p *ProjectNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	exprs := make([]string, len(p.Exprs))
+	for i, expr := range p.Exprs {
+		exprStr := expr.Expr.ToString()
+		if expr.Alis != "" {
+			exprStr += fmt.Sprintf(" as %s", expr.Alis)
+		}
+		exprs[i] = exprStr
+	}
+	f.WriteString(fmt.Sprintf("Projection (%s)", strings.Join(exprs, ", ")))
+	p.Source.FormatNode(f, prefix, false)
 }
 
 type NestedLoopJoinNode struct {
@@ -100,7 +283,27 @@ type NestedLoopJoinNode struct {
 	Outer     bool
 }
 
-func (n *NestedLoopJoinNode) node() {
+func (n *NestedLoopJoinNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString("Nested Loop Join")
+	if n.Predicate != nil {
+		f.WriteString(fmt.Sprintf("(%s)", n.Predicate.ToString()))
+	}
+	n.Left.FormatNode(f, prefix, false)
+	n.Right.FormatNode(f, prefix, false)
 }
 
 type HashJoinNode struct {
@@ -110,7 +313,27 @@ type HashJoinNode struct {
 	Outer     bool
 }
 
-func (h *HashJoinNode) node() {
+func (h *HashJoinNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString("Hash Join")
+	if h.Predicate != nil {
+		f.WriteString(fmt.Sprintf("(%s)", h.Predicate.ToString()))
+	}
+	h.Left.FormatNode(f, prefix, false)
+	h.Right.FormatNode(f, prefix, false)
 }
 
 type AggregateNode struct {
@@ -119,7 +342,31 @@ type AggregateNode struct {
 	GroupBy *types.Expression
 }
 
-func (a *AggregateNode) node() {
+func (a *AggregateNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	exprs := make([]string, len(a.Exprs))
+	for i, expr := range a.Exprs {
+		exprStr := expr.Expr.ToString()
+		if expr.Alis != "" {
+			exprStr += fmt.Sprintf(" as %s", expr.Alis)
+		}
+		exprs[i] = exprStr
+	}
+	f.WriteString(fmt.Sprintf("Aggregate (%s)", strings.Join(exprs, ", ")))
+	a.Source.FormatNode(f, prefix, false)
 }
 
 type FilterNode struct {
@@ -127,7 +374,23 @@ type FilterNode struct {
 	Predicate *types.Expression
 }
 
-func (f *FilterNode) node() {
+func (fi *FilterNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString(fmt.Sprintf("Filter (%s)", fi.Predicate.ToString()))
+	fi.Source.FormatNode(f, prefix, false)
 }
 
 type IndexScanNode struct {
@@ -136,7 +399,22 @@ type IndexScanNode struct {
 	Value     types.Value
 }
 
-func (i *IndexScanNode) node() {
+func (i *IndexScanNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString(fmt.Sprintf("Index Scan On %s %s", i.TableName, i.Filed))
 }
 
 type PrimaryKeyScanNode struct {
@@ -144,7 +422,22 @@ type PrimaryKeyScanNode struct {
 	Value     types.Value
 }
 
-func (p *PrimaryKeyScanNode) node() {
+func (p *PrimaryKeyScanNode) FormatNode(f *strings.Builder, prefix string, root bool) {
+	if !root {
+		f.WriteString("\n")
+	} else {
+		f.WriteString("           SQL PLAN           ")
+		f.WriteString("------------------------------")
+	}
+	if prefix == "" {
+		prefix = "  ->  "
+	} else {
+		// 第一步：输出当前前缀
+		f.WriteString(prefix)
+		// 第二步：生成子节点的新前缀
+		prefix = "   " + prefix
+	}
+	f.WriteString(fmt.Sprintf("Primary key Scan On %s %s", p.TableName, p.Value.Bytes()))
 }
 
 type FromItem interface {

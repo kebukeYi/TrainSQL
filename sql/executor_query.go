@@ -19,7 +19,7 @@ func NewScanTableExecutor(tableName string, filter *types.Expression) *ScanTable
 	}
 }
 func (scan *ScanTableExecutor) Execute(s Service) types.ResultSet {
-	fmt.Println("ExecuteScan")
+	//fmt.Printf("\nScan table %s:\n", scan.TableName)
 	table := s.MustGetTable(scan.TableName)
 	columns := table.Columns
 	var columnNames []string
@@ -62,7 +62,7 @@ func (scan *IndexScanTableExecutor) Execute(s Service) types.ResultSet {
 		}
 		return false
 	})
-	rows := make([]types.Row, len(loadIndex))
+	rows := make([]types.Row, 0)
 	for _, index := range loadIndex {
 		if row := s.ReadById(scan.TableName, index); row != nil {
 			rows = append(rows, row)
@@ -194,12 +194,19 @@ func (project *ProjectExecutor) Execute(s Service) types.ResultSet {
 	return nil
 }
 
-type OrderExecutor struct {
-	Source  Executor
-	OrderBy map[string]OrderDirection
+type OrderDirection struct {
+	colName   string
+	direction OrderType
 }
 
-func NewOrderExecutor(source Executor, orderBy map[string]OrderDirection) *OrderExecutor {
+type OrderExecutor struct {
+	Source Executor
+	// 重大bug: map的遍历没有顺序性; 应该使用 切片数组, 保证遍历时按照插入顺序返回;
+	// OrderBy map[string]OrderDirection
+	OrderBy []*OrderDirection
+}
+
+func NewOrderExecutor(source Executor, orderBy []*OrderDirection) *OrderExecutor {
 	return &OrderExecutor{
 		Source:  source,
 		OrderBy: orderBy,
@@ -210,9 +217,9 @@ func (order *OrderExecutor) Execute(s Service) types.ResultSet {
 	if set, ok := resultSet.(*types.ScanTableResult); ok {
 		// 找到 order by 的列对应表中的列的位置;
 		orderColIndex := make(map[string]int)
-		for colName, _ := range order.OrderBy {
+		for _, orderDirection := range order.OrderBy {
 			for index, column := range set.Columns {
-				if column == colName {
+				if column == orderDirection.colName {
 					orderColIndex[column] = index
 				}
 			}
@@ -224,25 +231,27 @@ func (order *OrderExecutor) Execute(s Service) types.ResultSet {
 		sort.Slice(set.Rows, func(i, j int) bool {
 			// select a,b from user order by c,d desc e asc;
 			// 迭代 order_by 参数, 可能存在多个 desc asc 列值;
-			for colName, direction := range order.OrderBy {
+			for _, orderDirection := range order.OrderBy {
 				// 每一行的固定列值来参与 排序;
-				iValue := set.Rows[i][orderColIndex[colName]]
-				jValue := set.Rows[j][orderColIndex[colName]]
+				iValue := set.Rows[i][orderColIndex[orderDirection.colName]]
+				jValue := set.Rows[j][orderColIndex[orderDirection.colName]]
 				allow, cmp := iValue.PartialCmp(jValue)
 				if !allow {
 					continue
 				}
 				if cmp == 0 {
-					continue
+					continue // 判断下一个比较条件
 				}
-				if direction == OrderAsc {
+				if orderDirection.direction == OrderAsc {
 					return cmp < 0
 				} else {
 					return cmp > 0
 				}
 			}
-			return false
+			// 比较完毕, 默认返回 true, 不改动位置;
+			return true
 		})
+
 		return &types.ScanTableResult{
 			Columns: set.Columns,
 			Rows:    set.Rows,
@@ -267,9 +276,23 @@ func (limit *LimitExecutor) Execute(s Service) types.ResultSet {
 	// limit 10 offset 10;
 	resultSet := limit.Source.Execute(s)
 	if set, ok := resultSet.(*types.ScanTableResult); ok {
+		if limit.Limit > len(set.Rows) {
+			limit.Limit = len(set.Rows)
+		}
+		fmt.Println("---------------limit start----------------------")
+
+		for _, row := range set.Rows {
+			fmt.Println(types.RowsToString(row))
+		}
+		fmt.Println("---------------limit ing----------------------")
+		rows := set.Rows[:limit.Limit]
+		for _, row := range rows {
+			fmt.Println(types.RowsToString(row))
+		}
+		fmt.Println("---------------limit over----------------------")
 		return &types.ScanTableResult{
 			Columns: set.Columns,
-			Rows:    set.Rows[0:limit.Limit],
+			Rows:    rows,
 		}
 	}
 	util.Error("LimitExecutor.Execute error resultSet type")
@@ -291,6 +314,20 @@ func (offset *OffsetExecutor) Execute(s Service) types.ResultSet {
 	// limit 10 offset 10;
 	resultSet := offset.Source.Execute(s)
 	if set, ok := resultSet.(*types.ScanTableResult); ok {
+		if offset.Offset > len(set.Rows) {
+			offset.Offset = len(set.Rows) - 1
+		}
+		fmt.Println("---------------offset start----------------------")
+		for _, row := range set.Rows {
+			fmt.Println(types.RowsToString(row))
+		}
+		fmt.Println("---------------offset ing----------------------")
+		rows := set.Rows[offset.Offset:]
+		for _, row := range rows {
+			fmt.Println(types.RowsToString(row))
+		}
+		fmt.Println("---------------offset over----------------------")
+
 		return &types.ScanTableResult{
 			Columns: set.Columns,
 			Rows:    set.Rows[offset.Offset:],

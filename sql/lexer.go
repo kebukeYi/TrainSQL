@@ -56,7 +56,7 @@ func (le *Lexer) unReadCh() error {
 // 将 sql 中的空格字符,一一取出,随后丢弃掉;
 func (le *Lexer) eraseWithSpace() error {
 	if _, err := le.nextWhile(func(r byte) bool {
-		return r == ' '
+		return r == ' ' || r == '\t' || r == '\n'
 	}); err != nil {
 		return err
 	}
