@@ -9,6 +9,21 @@ type Statement interface {
 	Statement() types.ResultSet
 }
 
+type ShowTableData struct {
+	TableName string
+}
+
+func (s *ShowTableData) Statement() types.ResultSet {
+	return nil
+}
+
+type ShowTDataBaseData struct {
+}
+
+func (s *ShowTDataBaseData) Statement() types.ResultSet {
+	return nil
+}
+
 type CreatTableData struct {
 	TableName string
 	Columns   []*types.Column

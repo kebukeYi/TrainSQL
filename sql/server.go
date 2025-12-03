@@ -13,6 +13,10 @@ func (s *ServerManager) Begin() Service {
 	return NewKVService(s.txnManager.Begin())
 }
 
+func (s *ServerManager) Close() error {
+	return s.txnManager.Close()
+}
+
 func NewServer(sto storage.Storage) *ServerManager {
 	return &ServerManager{
 		txnManager: storage.NewTransactionManager(sto),

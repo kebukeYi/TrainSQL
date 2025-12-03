@@ -118,7 +118,7 @@ func (le *Lexer) next() *Token {
 	}
 	if token == nil {
 		if peek, _ := le.peek(1); peek != nil {
-			util.Error("Unexpected character: %s \n", string(peek))
+			util.Error("Unexpected character: %v \n", peek)
 		}
 		return nil
 	}

@@ -52,10 +52,14 @@ func (disk *DiskStorage) UnLock() {
 	disk.lock.Unlock()
 }
 func (disk *DiskStorage) Close() error {
+	if disk.db == nil {
+		return nil
+	}
 	err := disk.db.Close()
 	if err != nil {
 		return err
 	}
+	disk.db = nil
 	return nil
 }
 func (disk *DiskStorage) Sync() {

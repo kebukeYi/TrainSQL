@@ -156,12 +156,12 @@ func (p *Plan) BuildFromItem(item FromItem, filter *types.Expression) Node {
 
 	case *JoinItem:
 		joinItem := item.(*JoinItem)
+		// 如果是右连接, 则交换位置;
 		if joinItem.JoinType == RightType {
 			joinItem.Left, joinItem.Right = joinItem.Right, joinItem.Left
 		}
 		outer := true
-		if joinItem.JoinType == CrossType ||
-			joinItem.JoinType == InnerType {
+		if joinItem.JoinType == CrossType || joinItem.JoinType == InnerType {
 			outer = false
 		}
 

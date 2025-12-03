@@ -6,37 +6,35 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 )
 
-// TCPClient 客户端结构体
 type TCPClient struct {
 	addr string   // 服务器地址（如 127.0.0.1:8888）
 	conn net.Conn // TCP连接
 }
 
-// NewTCPClient 创建客户端实例
 func NewTCPClient(addr string) *TCPClient {
 	return &TCPClient{addr: addr}
 }
 
-// Connect 连接服务器
 func (c *TCPClient) Connect() error {
 	conn, err := net.Dial("tcp", c.addr)
 	if err != nil {
 		return fmt.Errorf("连接服务器失败：%v", err)
 	}
 	c.conn = conn
-	// fmt.Printf("成功连接到服务器 %s\n", c.addr)
 	return nil
 }
 
 // Interact 交互逻辑（读取服务器响应 + 发送指令）
 func (c *TCPClient) Interact() {
-	// 启动goroutine读取服务器响应
+	defer c.conn.Close()
+	// 启动goroutine读取服务器响应;
 	go func() {
 		reader := bufio.NewReader(c.conn)
+		// 按字节读取,直到遇到EOF;
 		for {
-			// 按字节读取,直到遇到EOF;
 			buf := make([]byte, 1024)
 			n, err := reader.Read(buf)
 			if err != nil {
@@ -47,44 +45,39 @@ func (c *TCPClient) Interact() {
 				}
 				os.Exit(0)
 			}
-			// 直接打印原始字节（保留所有换行符）
+			fmt.Printf("\n服务器响应长度: %d \n", n)
+			// 直接打印原始字节内容(保留所有换行符)
 			fmt.Print(string(buf[:n]))
+			// buf = buf[:0]
 		}
 	}()
 
-	// 读取用户输入并发送给服务器
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		input := scanner.Text()
-		if input == "" {
-			continue
+	// 读取用户输入并发送给服务器;
+	scan := bufio.NewScanner(os.Stdin)
+	for scan.Scan() {
+		text := scan.Text()
+		if strings.TrimSpace(text) == CmdExit {
+			fmt.Println("收到退出指令")
+			return
 		}
-		// 发送指令（追加换行符，符合协议）
-		_, err := c.conn.Write([]byte(input + "\n"))
+		fmt.Println("用户输入的长度: ", len(text))
+		// 发送指令
+		_, err := c.conn.Write([]byte(text))
 		if err != nil {
 			fmt.Printf("发送指令失败：%v\n", err)
 			break
 		}
-		// 如果是exit指令，退出循环
-		if trimSpace(input) == CmdExit {
-			break
-		}
 	}
-
-	// 关闭连接
-	c.conn.Close()
 }
 
-// 客户端主函数
 func main() {
-	client := NewTCPClient("127.0.0.1:8888")
+	serverAddr := "127.0.0.1:8888"
+	client := NewTCPClient(serverAddr)
 
-	// 连接服务器
 	if err := client.Connect(); err != nil {
 		fmt.Printf("客户端启动失败：%v\n", err)
 		os.Exit(1)
 	}
 
-	// 开始交互
 	client.Interact()
 }

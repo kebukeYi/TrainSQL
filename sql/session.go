@@ -58,6 +58,17 @@ func (s *Session) Execute(sqlStr string) types.ResultSet {
 					Plan: explain,
 				}
 			}
+		case *ShowTableData:
+			showStatement := statement.(*ShowTableData)
+			table := s.GetTable(showStatement.TableName)
+			return &types.ShowTableResult{
+				TableInfo: table,
+			}
+		case *ShowTDataBaseData:
+			tables := s.ShowTableNames()
+			return &types.ShowDataBaseResult{
+				TablesInfo: tables,
+			}
 		default:
 			// 前面手动 begin 起来的事务;随后的sql会进入到这分支;
 			if s.Service != nil {

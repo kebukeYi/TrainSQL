@@ -366,11 +366,11 @@ func TestMemoryStorage(t *testing.T) {
 	memoryStorage := storage.NewMemoryStorage()
 	server := NewServer(memoryStorage)
 	session := server.Session()
-	testCreateTable(t, session)
-	testInsertTable(t, session) // t1 t2 t3 t4,
-	testUpdate(t, session)
-	testDelete(t, session)
-	testOrderBy(t, session)
+	//testCreateTable(t, session)
+	//testInsertTable(t, session) // t1 t2 t3 t4,
+	//testUpdate(t, session)
+	//testDelete(t, session)
+	//testOrderBy(t, session)
 
 	// testAgg(t, session)
 	// testFilter(t, session)

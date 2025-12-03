@@ -4,9 +4,8 @@ import "fmt"
 
 // 定义指令类型（模仿MySQL的指令）
 const (
-	CmdQuery  = "query"  // 查询指令
-	CmdInsert = "insert" // 插入指令
-	CmdExit   = "exit"   // 退出指令
+	CmdSQL  = "SQL"  // 查询指令
+	CmdExit = "exit" // 退出指令
 )
 
 // Request 解析后的客户端请求
@@ -32,30 +31,30 @@ func (r *Response) Serialize() string {
 // ParseRequest 解析客户端请求（从字符串解析为Request）
 func ParseRequest(data string) (*Request, error) {
 	// 切割指令和参数（格式：cmd: args）
-	sepIdx := -1
-	for i, c := range data {
-		if c == ':' {
-			sepIdx = i
-			break
-		}
-	}
-	if sepIdx == -1 {
-		return nil, fmt.Errorf("无效指令格式，正确格式：cmd: 参数（如 query: select * from user）")
-	}
-
-	cmd := data[:sepIdx]
-	args := data[sepIdx+1:]
-	// 去除首尾空格
-	cmd = trimSpace(cmd)
-	args = trimSpace(args)
-
-	if cmd == "" {
-		return nil, fmt.Errorf("指令类型不能为空")
-	}
+	//sepIdx := -1
+	//for i, c := range data {
+	//	if c == ':' {
+	//		sepIdx = i
+	//		break
+	//	}
+	//}
+	//if sepIdx == -1 {
+	//	return nil, fmt.Errorf("无效指令格式，正确格式：cmd: 参数（如 query: select * from user）")
+	//}
+	//
+	//cmd := data[:sepIdx]
+	//args := data[sepIdx+1:]
+	//// 去除首尾空格
+	//cmd = trimSpace(cmd)
+	//args = trimSpace(args)
+	//
+	//if cmd == "" {
+	//	return nil, fmt.Errorf("指令类型不能为空")
+	//}
 
 	return &Request{
-		Cmd:  cmd,
-		Args: args,
+		Cmd:  "SQL",
+		Args: data,
 	}, nil
 }
 

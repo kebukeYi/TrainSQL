@@ -529,6 +529,22 @@ func (b *ExplainResult) ToString() string {
 	return b.Plan
 }
 
+type ShowTableResult struct {
+	TableInfo string
+}
+
+func (s *ShowTableResult) ToString() string {
+	return s.TableInfo
+}
+
+type ShowDataBaseResult struct {
+	TablesInfo string
+}
+
+func (s *ShowDataBaseResult) ToString() string {
+	return s.TablesInfo
+}
+
 type CommitResult struct {
 	Version int
 }

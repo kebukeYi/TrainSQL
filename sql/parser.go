@@ -87,6 +87,8 @@ func (p *Parser) parseStatement() Statement {
 	} else {
 		if token.Type == KEYWORD {
 			switch token.Value {
+			case Show:
+				return p.parseShow()
 			case Create:
 				return p.parseDdl()
 			case Drop:
@@ -616,5 +618,24 @@ func (p *Parser) parseExplain() Statement {
 
 func (p *Parser) parseDdlCreateView() Statement {
 	// todo 有待实现
+	return nil
+}
+
+func (p *Parser) parseShow() Statement {
+	p.nextExpect(&Token{Type: KEYWORD, Value: Show})
+	if token := p.next(); token != nil {
+		if token.Value == Table {
+			tableName := p.nextIdent()
+			return &ShowTableData{
+				// 展示指定表信息
+				TableName: tableName,
+			}
+		} else if token.Value == DataBase {
+			// 展示全部表;
+			return &ShowTDataBaseData{}
+		} else {
+			util.Error("[parseShow] unhandled default case %s;\n", token.ToString())
+		}
+	}
 	return nil
 }

@@ -22,53 +22,56 @@ const (
 	MINUS                 // 减号 -
 	SLASH                 // 斜杠 /
 	EQUAL                 // 等号 =
-	GREATERTHAN           // 大于
-	LESSTHAN              // 小于
+	GREATERTHAN           // 大于 >
+	LESSTHAN              // 小于 <
 )
 
 type TokenValue string
 
+// KEYWORD 类别关键字如下:
 const (
-	Create  TokenValue = "CREATE"
-	Table   TokenValue = "TABLE"
-	Index   TokenValue = "INDEX"
-	Int     TokenValue = "INT"
-	Integer TokenValue = "INTEGER"
-	Boolean TokenValue = "BOOLEAN"
-	Bool    TokenValue = "BOOL"
-	String  TokenValue = "STRING"
-	Text    TokenValue = "TEXT"
-	Varchar TokenValue = "VARCHAR"
-	Char    TokenValue = "CHAR"
-	Float   TokenValue = "FLOAT"
-	Double  TokenValue = "DOUBLE"
-	Select  TokenValue = "SELECT"
-	From    TokenValue = "FROM"
-	Insert  TokenValue = "INSERT"
-	Into    TokenValue = "INTO"
-	Values  TokenValue = "VALUES"
-	True    TokenValue = "TRUE"
-	False   TokenValue = "FALSE"
-	Default TokenValue = "DEFAULT"
-	Not     TokenValue = "NOT"
-	Null    TokenValue = "NULL"
-	Primary TokenValue = "PRIMARY"
-	Key     TokenValue = "KEY"
-	Update  TokenValue = "UPDATE"
-	Set     TokenValue = "SET"
-	Where   TokenValue = "WHERE"
-	Delete  TokenValue = "DELETE"
-	Drop    TokenValue = "DROP"
-	On      TokenValue = "ON"
-	Asc     TokenValue = "ASC"
-	As      TokenValue = "AS"
-	Desc    TokenValue = "DESC"
-	Limit   TokenValue = "LIMIT"
-	Offset  TokenValue = "OFFSET"
-	Group   TokenValue = "GROUP"
-	By      TokenValue = "BY"
-	Having  TokenValue = "HAVING"
-	Order   TokenValue = "ORDER"
+	Show     TokenValue = "SHOW"
+	DataBase TokenValue = "DATABASE"
+	Create   TokenValue = "CREATE"
+	Table    TokenValue = "TABLE"
+	Index    TokenValue = "INDEX"
+	Int      TokenValue = "INT"
+	Integer  TokenValue = "INTEGER"
+	Boolean  TokenValue = "BOOLEAN"
+	Bool     TokenValue = "BOOL"
+	String   TokenValue = "STRING"
+	Text     TokenValue = "TEXT"
+	Varchar  TokenValue = "VARCHAR"
+	Char     TokenValue = "CHAR"
+	Float    TokenValue = "FLOAT"
+	Double   TokenValue = "DOUBLE"
+	Select   TokenValue = "SELECT"
+	From     TokenValue = "FROM"
+	Insert   TokenValue = "INSERT"
+	Into     TokenValue = "INTO"
+	Values   TokenValue = "VALUES"
+	True     TokenValue = "TRUE"
+	False    TokenValue = "FALSE"
+	Default  TokenValue = "DEFAULT"
+	Not      TokenValue = "NOT"
+	Null     TokenValue = "NULL"
+	Primary  TokenValue = "PRIMARY"
+	Key      TokenValue = "KEY"
+	Update   TokenValue = "UPDATE"
+	Set      TokenValue = "SET"
+	Where    TokenValue = "WHERE"
+	Delete   TokenValue = "DELETE"
+	Drop     TokenValue = "DROP"
+	On       TokenValue = "ON"
+	Asc      TokenValue = "ASC"
+	As       TokenValue = "AS"
+	Desc     TokenValue = "DESC"
+	Limit    TokenValue = "LIMIT"
+	Offset   TokenValue = "OFFSET"
+	Group    TokenValue = "GROUP"
+	By       TokenValue = "BY"
+	Having   TokenValue = "HAVING"
+	Order    TokenValue = "ORDER"
 
 	Cross TokenValue = "CROSS"
 	Join  TokenValue = "JOIN"
@@ -160,6 +163,9 @@ func (t *Token) ToString() string {
 
 func InitWord() map[string]*Token {
 	return map[string]*Token{
+		"SHOW":     NewToken(KEYWORD, Show),
+		"DATABASE": NewToken(KEYWORD, DataBase),
+
 		"CREATE": NewToken(KEYWORD, Create),
 		"TABLE":  NewToken(KEYWORD, Table),
 
