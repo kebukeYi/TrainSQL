@@ -92,18 +92,19 @@ func (s *TCPServer) handleClient(conn net.Conn, session *sql.Session) {
 
 	// 读取客户端输入;
 	reader := bufio.NewReader(conn)
+	buf := make([]byte, 10240)
 	for {
-		buf := make([]byte, 1024)
+		buf = buf[:cap(buf)]
 		// 按字节读取, 直到遇到EOF;
 		n, err := reader.Read(buf)
-		fmt.Println("接收到数据长度:", n)
+		fmt.Println("接收到客户端数据长度:", n)
 		if err != nil {
 			if err == io.EOF {
-				fmt.Println("\n与服务器的连接已断开")
+				fmt.Println("\n与客户端的连接已断开")
 			} else {
-				fmt.Printf("\n读取服务器响应失败：%v\n", err)
+				fmt.Printf("\n读取客户端输入失败: %v\n", err)
 			}
-			os.Exit(0)
+			return
 		}
 		if n < 4 {
 			resp := &Response{Success: false, Msg: "请输入有效指令"}
@@ -142,7 +143,7 @@ func (s *TCPServer) handleClient(conn net.Conn, session *sql.Session) {
 		conn.Write([]byte(resp.Serialize()))
 		conn.Write([]byte(welcomeMsg))
 
-		// buf = buf[:0]
+		buf = buf[:0]
 	}
 }
 

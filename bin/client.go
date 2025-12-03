@@ -31,24 +31,26 @@ func (c *TCPClient) Connect() error {
 func (c *TCPClient) Interact() {
 	defer c.conn.Close()
 	// 启动goroutine读取服务器响应;
+	buf := make([]byte, 1024)
 	go func() {
 		reader := bufio.NewReader(c.conn)
 		// 按字节读取,直到遇到EOF;
+		buf = buf[:cap(buf)]
 		for {
-			buf := make([]byte, 1024)
+			buf = buf[:cap(buf)]
 			n, err := reader.Read(buf)
 			if err != nil {
 				if err == io.EOF {
 					fmt.Println("\n与服务器的连接已断开")
 				} else {
-					fmt.Printf("\n读取服务器响应失败：%v\n", err)
+					fmt.Printf("\n读取服务器响应失败: %v\n", err)
 				}
 				os.Exit(0)
 			}
 			fmt.Printf("\n服务器响应长度: %d \n", n)
 			// 直接打印原始字节内容(保留所有换行符)
 			fmt.Print(string(buf[:n]))
-			// buf = buf[:0]
+			buf = buf[:0]
 		}
 	}()
 
