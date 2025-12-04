@@ -18,12 +18,12 @@ func ClearPath(dirPath string) {
 	os.RemoveAll(dirPath)
 }
 
-func Error(format string, args ...interface{}) {
-	panic(fmt.Sprintf(format, args...))
+func Error(format string, args ...interface{}) error {
+	return errors.New(fmt.Sprintf(format, args...))
 }
 
 var (
-	Mismatch      = errors.New("Mismatch")
+	Mismatch      = errors.New("mismatch")
 	WriteConflict = errors.New("WriteConflict")
 )
 

@@ -40,7 +40,10 @@ func (n *NestedLoopJoinExecutor) Execute(s Service) types.ResultSet {
 				for _, rrow := range right.Rows {
 					// 判断当前两行是否满足 on 条件;
 					if n.Predicate != nil {
-						value := types.EvaluateExpr(n.Predicate, left.Columns, lrow, right.Columns, rrow)
+						value, err := types.EvaluateExpr(n.Predicate, left.Columns, lrow, right.Columns, rrow)
+						if err != nil {
+							return &types.ErrorResult{ErrorMessage: err.Error()}
+						}
 						switch value.(type) {
 						case *types.ConstNull:
 						case *types.ConstBool:
@@ -50,7 +53,7 @@ func (n *NestedLoopJoinExecutor) Execute(s Service) types.ResultSet {
 								newRows = append(newRows, append(lrow, rrow...))
 							}
 						default:
-							util.Error("NestedLoopJoinExecutor.EvaluateExpr Unexpected expression")
+							return &types.ErrorResult{ErrorMessage: util.Error("NestedLoopJoinExecutor.EvaluateExpr Unexpected expression").Error()}
 						}
 					} else {
 						// 没有 on 条件限制;

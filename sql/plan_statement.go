@@ -14,6 +14,7 @@ type ShowTableData struct {
 }
 
 func (s *ShowTableData) Statement() types.ResultSet {
+	fmt.Println("show table", s.TableName)
 	return nil
 }
 
@@ -60,6 +61,7 @@ type DropTableData struct {
 }
 
 func (d *DropTableData) Statement() types.ResultSet {
+	fmt.Println("drop table", d.TableName)
 	return nil
 }
 
@@ -100,6 +102,8 @@ type DeleteData struct {
 }
 
 func (d *DeleteData) Statement() types.ResultSet {
+	fmt.Println("delete from", d.TableName)
+	fmt.Println("where", d.WhereClause.ToString())
 	return nil
 }
 
@@ -110,6 +114,11 @@ type UpdateData struct {
 }
 
 func (u *UpdateData) Statement() types.ResultSet {
+	fmt.Println("update", u.TableName)
+	for k, v := range u.Columns {
+		fmt.Println("update column:", k, "value:", v.ToString())
+	}
+	fmt.Println("where", u.WhereClause.ToString())
 	return nil
 }
 
@@ -130,7 +139,39 @@ type SelectData struct {
 }
 
 func (s *SelectData) Statement() types.ResultSet {
-	fmt.Println("select from", s.From.(*TableItem).TableName)
+	fmt.Print("select")
+	if len(s.SelectCols) > 0 {
+		for _, col := range s.SelectCols {
+			fmt.Print(" ")
+			fmt.Print(col.Expr.ToString(), col.Alis)
+			fmt.Print(", ")
+		}
+	} else {
+		fmt.Print(" * ")
+	}
+	fmt.Print(" from ", s.From.(*TableItem).TableName)
+	if s.WhereClause != nil {
+		fmt.Print(" where ", s.WhereClause.ToString())
+	}
+	if s.GroupBy != nil {
+		fmt.Print(" group by ", s.GroupBy.ToString())
+	}
+	if s.Having != nil {
+		fmt.Print(" having ", s.Having.ToString())
+	}
+	if s.OrderBy != nil {
+		fmt.Print(" order by ")
+		for _, order := range s.OrderBy {
+			fmt.Print(order.colName, order.direction)
+		}
+	}
+	if s.Limit != nil {
+		fmt.Print(" limit ", s.Limit.ToString())
+	}
+	if s.Offset != nil {
+		fmt.Print(" offset ", s.Offset.ToString())
+	}
+	fmt.Println()
 	return nil
 }
 
@@ -141,6 +182,11 @@ type CreateIndexData struct {
 }
 
 func (c *CreateIndexData) Statement() types.ResultSet {
+	fmt.Println("create index", c.IndexName, "on", c.TableName)
+	for _, column := range c.Columns {
+		fmt.Println("column:", column.Name)
+	}
+	fmt.Println("index:", c.IndexName)
 	return nil
 }
 
@@ -170,5 +216,5 @@ type ExplainData struct {
 }
 
 func (e *ExplainData) Statement() types.ResultSet {
-	return nil
+	return e.Statements.Statement()
 }

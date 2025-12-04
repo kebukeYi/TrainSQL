@@ -17,13 +17,20 @@ func NewPlan(ast Statement, service Service) *Plan {
 	return plan
 }
 func (p *Plan) Execute() types.ResultSet {
-	p.node = p.BuildNode()
+	var err error
+	p.node, err = p.BuildNode()
+	if err != nil {
+		return &types.ErrorResult{
+			ErrorMessage: err.Error(),
+		}
+	}
 	executor := p.BuildExecutor(p.node)
 	resultSet := executor.Execute(p.Service)
 	return resultSet
 }
-func (p *Plan) BuildNode() Node {
+func (p *Plan) BuildNode() (Node, error) {
 	var node Node
+	var err error
 	var ast Statement
 	ast = p.ast
 	switch ast.(type) {
@@ -61,7 +68,10 @@ func (p *Plan) BuildNode() Node {
 		}
 	case *SelectData:
 		selectData := ast.(*SelectData)
-		node = p.BuildFromItem(selectData.From, selectData.WhereClause)
+		node, err = p.BuildFromItem(selectData.From, selectData.WhereClause)
+		if err != nil {
+			return nil, err
+		}
 		hasAgg := false
 		// aggregate、group by
 		if selectData.SelectCols != nil || len(selectData.SelectCols) != 0 {
@@ -100,7 +110,7 @@ func (p *Plan) BuildNode() Node {
 		if selectData.Offset != nil {
 			constInt, ok := selectData.Offset.ConstVal.(*types.ConstInt)
 			if !ok {
-				util.Error("offset value must be int")
+				return nil, util.Error("#BuildNode offset value must be int")
 			}
 			node = &OffsetNode{
 				Source: node,
@@ -111,7 +121,7 @@ func (p *Plan) BuildNode() Node {
 		if selectData.Limit != nil {
 			constInt, ok := selectData.Limit.ConstVal.(*types.ConstInt)
 			if !ok {
-				util.Error("limit value must be int")
+				return nil, util.Error("#BuildNode limit value must be int")
 			}
 			node = &LimitNode{
 				Source: node,
@@ -126,30 +136,38 @@ func (p *Plan) BuildNode() Node {
 			}
 		}
 	case *UpdateData:
+		buildScan, err := p.buildScan(ast.(*UpdateData).TableName, ast.(*UpdateData).WhereClause)
+		if err != nil {
+			return nil, err
+		}
 		node = &UpdateNode{
 			TableName: ast.(*UpdateData).TableName,
-			Source:    p.buildScan(ast.(*UpdateData).TableName, ast.(*UpdateData).WhereClause),
+			Source:    buildScan,
 			columns:   ast.(*UpdateData).Columns,
 		}
 	case *DeleteData:
+		buildScan, err := p.buildScan(ast.(*DeleteData).TableName, ast.(*DeleteData).WhereClause)
+		if err != nil {
+			return nil, err
+		}
 		node = &DeleteNode{
 			TableName: ast.(*DeleteData).TableName,
-			Source:    p.buildScan(ast.(*DeleteData).TableName, ast.(*DeleteData).WhereClause),
+			Source:    buildScan,
 		}
 	case *BeginData:
-		util.Error("not support begin command")
+		return nil, util.Error("#BuildNode not support begin command")
 	case *CommitData:
-		util.Error("not support commit command")
+		return nil, util.Error("#BuildNode not support commit command")
 	case *RollbackData:
-		util.Error("not support rollback command")
+		return nil, util.Error("#BuildNode not support rollback command")
 	case *ExplainData:
-		util.Error("not support explain command")
+		return nil, util.Error("#BuildNode not support explain command")
 	default:
-		panic("not support ast type")
+		return nil, util.Error("#BuildNode not support ast type")
 	}
-	return node
+	return node, nil
 }
-func (p *Plan) BuildFromItem(item FromItem, filter *types.Expression) Node {
+func (p *Plan) BuildFromItem(item FromItem, filter *types.Expression) (Node, error) {
 	switch item.(type) {
 	case *TableItem:
 		return p.buildScan(item.(*TableItem).TableName, filter)
@@ -165,23 +183,31 @@ func (p *Plan) BuildFromItem(item FromItem, filter *types.Expression) Node {
 			outer = false
 		}
 
+		left, err := p.BuildFromItem(joinItem.Left, joinItem.Predicate)
+		if err != nil {
+			return nil, err
+		}
+		right, err := p.BuildFromItem(joinItem.Right, joinItem.Predicate)
+		if err != nil {
+			return nil, err
+		}
 		if joinItem.JoinType == CrossType {
 			return &NestedLoopJoinNode{
-				Left:      p.BuildFromItem(joinItem.Left, joinItem.Predicate),
-				Right:     p.BuildFromItem(joinItem.Right, joinItem.Predicate),
+				Left:      left,
+				Right:     right,
 				Predicate: joinItem.Predicate,
 				Outer:     outer,
-			}
+			}, nil
 		} else {
 			return &HashJoinNode{
-				Left:      p.BuildFromItem(joinItem.Left, joinItem.Predicate),
-				Right:     p.BuildFromItem(joinItem.Right, joinItem.Predicate),
+				Left:      left,
+				Right:     right,
 				Predicate: joinItem.Predicate,
 				Outer:     outer,
-			}
+			}, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 func (p *Plan) BuildExecutor(node Node) Executor {
 	switch node.(type) {
@@ -233,37 +259,40 @@ func (p *Plan) BuildExecutor(node Node) Executor {
 	}
 	return nil
 }
-func (p *Plan) buildScan(tableName string, whereClause *types.Expression) Node {
+func (p *Plan) buildScan(tableName string, whereClause *types.Expression) (Node, error) {
 	scanFilter := p.parseScanFilter(whereClause)
 	if scanFilter != nil {
-		table := p.Service.MustGetTable(tableName)
+		table, err := p.Service.MustGetTable(tableName)
+		if err != nil {
+			return nil, err
+		}
 		if table == nil {
-			return nil
+			return nil, err
 		}
 		for _, column := range table.Columns {
 			if column.Name == scanFilter.field && column.PrimaryKey == true {
 				return &PrimaryKeyScanNode{
 					TableName: tableName,
 					Value:     scanFilter.value,
-				}
+				}, nil
 			}
 			if column.Name == scanFilter.field && column.IsIndex == true {
 				return &IndexScanNode{
 					TableName: tableName,
 					Filed:     scanFilter.field,
 					Value:     scanFilter.value,
-				}
+				}, nil
 			}
 		}
 		return &ScanNode{
 			TableName: tableName,
 			Filter:    whereClause,
-		}
+		}, nil
 	} else {
 		return &ScanNode{
 			TableName: tableName,
 			Filter:    nil,
-		}
+		}, nil
 	}
 }
 

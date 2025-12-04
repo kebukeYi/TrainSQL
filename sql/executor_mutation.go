@@ -24,17 +24,17 @@ func NewInsertTableExecutor(tableName string, columns []string, values [][]*type
 // insert into tbl values(1, 2, 3);
 // a       b       c      d
 // 1       2       3     无值   (default 填充)
-func padRow(table *types.Table, row types.Row) types.Row {
+func padRow(table *types.Table, row types.Row) (types.Row, error) {
 	for id, column := range table.Columns {
 		if id >= len(row) {
 			if column.DefaultValue == nil {
-				util.Error("[padRow] Column %s has no default value;\n", column.Name)
+				return nil, util.Error("[padRow] Column %s has no default value;\n", column.Name)
 			} else {
 				row = append(row, column.DefaultValue)
 			}
 		}
 	}
-	return row
+	return row, nil
 }
 
 // tbl:
@@ -43,10 +43,10 @@ func padRow(table *types.Table, row types.Row) types.Row {
 //	a          b       c          d
 //
 // default   default   2          1
-func makeRow(table *types.Table, columns []string, row types.Row) types.Row {
+func makeRow(table *types.Table, columns []string, row types.Row) (types.Row, error) {
 	// 判断列数是否和value数一致
 	if len(columns) != len(row) {
-		util.Error("[makeRow] Columns and values count not match;\n")
+		return nil, util.Error("[makeRow] Columns and values count not match;\n")
 	}
 	input := make(map[string]types.Value)
 	for i, column := range columns {
@@ -56,7 +56,7 @@ func makeRow(table *types.Table, columns []string, row types.Row) types.Row {
 	for _, column := range table.Columns {
 		if input[column.Name] == nil {
 			if column.DefaultValue == nil {
-				util.Error("[makeRow] Column %s has no default value;\n", column.Name)
+				return nil, util.Error("[makeRow] Column %s has no default value;\n", column.Name)
 			} else {
 				input[column.Name] = column.DefaultValue
 				newRow = append(newRow, input[column.Name])
@@ -65,13 +65,18 @@ func makeRow(table *types.Table, columns []string, row types.Row) types.Row {
 			newRow = append(newRow, input[column.Name])
 		}
 	}
-	return newRow
+	return newRow, nil
 }
 
 func (i *InsertTableExecutor) Execute(s Service) types.ResultSet {
 	count := 0
 	// 先取出表信息;
-	mustGetTable := s.MustGetTable(i.TableName)
+	mustGetTable, err := s.MustGetTable(i.TableName)
+	if err != nil {
+		return &types.ErrorResult{
+			ErrorMessage: err.Error(),
+		}
+	}
 	// 每一行数据;
 	for _, expressions := range i.Values {
 		var row []types.Value
@@ -80,10 +85,20 @@ func (i *InsertTableExecutor) Execute(s Service) types.ResultSet {
 		}
 		// 如果没有指定插入的列;
 		if i.Columns == nil {
-			row = padRow(mustGetTable, row)
+			row, err = padRow(mustGetTable, row)
+			if err != nil {
+				return &types.ErrorResult{
+					ErrorMessage: err.Error(),
+				}
+			}
 		} else {
 			// 指定了插入的列，需要对 value 信息进行整理
-			row = makeRow(mustGetTable, i.Columns, row)
+			row, err = makeRow(mustGetTable, i.Columns, row)
+			if err != nil {
+				return &types.ErrorResult{
+					ErrorMessage: err.Error(),
+				}
+			}
 		}
 		s.CreateRow(i.TableName, row)
 		count++
@@ -112,7 +127,12 @@ func (u *UpdateTableExecutor) Execute(s Service) types.ResultSet {
 	result = u.Source.Execute(s)
 	switch result.(type) {
 	case *types.ScanTableResult:
-		table := s.MustGetTable(u.TableName)
+		table, err := s.MustGetTable(u.TableName)
+		if err != nil {
+			return &types.ErrorResult{
+				ErrorMessage: err.Error(),
+			}
+		}
 		selectTableResult := result.(*types.ScanTableResult)
 		// 遍历所有需要更新的行;
 		for _, row := range selectTableResult.Rows {
@@ -133,7 +153,9 @@ func (u *UpdateTableExecutor) Execute(s Service) types.ResultSet {
 			update++
 		}
 	default:
-		util.Error("[UpdateTableExecutor] Unsupported result type: %T\n", result)
+		return &types.ErrorResult{
+			ErrorMessage: util.Error("[UpdateTableExecutor] Unsupported result type: %T\n", result).Error(),
+		}
 	}
 	return &types.UpdateTableResult{
 		Count: update,
@@ -158,7 +180,12 @@ func (d *DeleteTableExecutor) Execute(s Service) types.ResultSet {
 	// 执行扫描操作，获取到扫描的结果;
 	switch result.(type) {
 	case *types.ScanTableResult:
-		table := s.MustGetTable(d.TableName)
+		table, err := s.MustGetTable(d.TableName)
+		if err != nil {
+			return &types.ErrorResult{
+				ErrorMessage: err.Error(),
+			}
+		}
 		selectTableResult := result.(*types.ScanTableResult)
 		// 遍历所有需要更新的行;
 		for _, row := range selectTableResult.Rows {
@@ -168,7 +195,9 @@ func (d *DeleteTableExecutor) Execute(s Service) types.ResultSet {
 			count++
 		}
 	default:
-		util.Error("[UpdateTableExecutor] Unsupported result type: %T\n", result)
+		return &types.ErrorResult{
+			ErrorMessage: util.Error("[UpdateTableExecutor] Unsupported result type: %T\n", result).Error(),
+		}
 	}
 	return &types.DeleteTableResult{
 		Count: count,

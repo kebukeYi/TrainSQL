@@ -8,16 +8,16 @@ type Service interface {
 	Commit()
 	Rollback()
 	Version() uint64
-	CreateRow(tableName string, row types.Row)
-	UpdateRow(table *types.Table, value types.Value, row []types.Value)
-	DeleteRow(table *types.Table, value types.Value)
-	ScanTable(tableName string, filter *types.Expression) []types.Row
-	LoadIndex(name string, filed string, value types.Value) []types.Value
-	SaveIndex(tableName string, colName string, value types.Value, indexSet []types.Value)
-	ReadById(name string, index types.Value) types.Row
-	CreateTable(table *types.Table)
-	DropTable(tableName string)
+	CreateRow(tableName string, row types.Row) error
+	UpdateRow(table *types.Table, value types.Value, row []types.Value) error
+	DeleteRow(table *types.Table, value types.Value) error
+	ScanTable(tableName string, filter *types.Expression) ([]types.Row, error)
+	LoadIndex(name string, filed string, value types.Value) ([]types.Value, error)
+	SaveIndex(tableName string, colName string, value types.Value, indexSet []types.Value) error
+	ReadById(name string, index types.Value) (types.Row, error)
+	CreateTable(table *types.Table) error
+	DropTable(tableName string) error
+	GetTable(tableName string) (*types.Table, error)
+	MustGetTable(tableName string) (*types.Table, error)
 	GetTableNames() []string
-	GetTable(tableName string) *types.Table
-	MustGetTable(tableName string) *types.Table
 }

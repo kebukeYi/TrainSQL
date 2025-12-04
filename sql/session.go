@@ -13,7 +13,11 @@ type Session struct {
 
 func (s *Session) Execute(sqlStr string) types.ResultSet {
 	newParser := NewParser(sqlStr)
-	statement := newParser.Parse()
+	var err error
+	statement, err := newParser.Parse()
+	if err != nil {
+		return &types.ErrorResult{ErrorMessage: err.Error()}
+	}
 	if statement != nil {
 		switch statement.(type) {
 		case *BeginData:
@@ -40,10 +44,15 @@ func (s *Session) Execute(sqlStr string) types.ResultSet {
 			s.Service = nil
 			return &types.RollbackResult{Version: int(version)}
 		case *ExplainData:
-			sourceStatement := statement.(*ExplainData)
+			sourceStatement := statement.(*ExplainData).Statements
 			if s.Service != nil {
 				plan := NewPlan(sourceStatement, s.Service)
-				node := plan.BuildNode()
+				node, err := plan.BuildNode()
+				if err != nil {
+					return &types.ErrorResult{
+						ErrorMessage: err.Error(),
+					}
+				}
 				explain := s.Explain(node)
 				return &types.ExplainResult{
 					Plan: explain,
@@ -51,7 +60,13 @@ func (s *Session) Execute(sqlStr string) types.ResultSet {
 			} else {
 				service := s.Server.Begin()
 				plan := NewPlan(sourceStatement, service)
-				node := plan.BuildNode()
+				node, err := plan.BuildNode()
+				if err != nil {
+					service.Rollback()
+					return &types.ErrorResult{
+						ErrorMessage: err.Error(),
+					}
+				}
 				explain := s.Explain(node)
 				service.Commit()
 				return &types.ExplainResult{
@@ -99,17 +114,24 @@ func (s *Session) Execute(sqlStr string) types.ResultSet {
 			ErrorMessage: "Parser sql error;",
 		}
 	}
-	return nil
 }
 
 func (s *Session) GetTable(tableName string) string {
 	if s.Service != nil {
-		table := s.Service.MustGetTable(tableName)
+		table, err := s.Service.MustGetTable(tableName)
+		if err != nil {
+			s.Service.Rollback()
+			return err.Error()
+		}
 		s.Service.Commit()
 		return table.ToString()
 	} else {
 		service := s.Server.Begin()
-		table := service.MustGetTable(tableName)
+		table, err := service.MustGetTable(tableName)
+		if err != nil {
+			service.Rollback()
+			return err.Error()
+		}
 		service.Commit()
 		return table.ToString()
 	}

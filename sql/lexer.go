@@ -27,6 +27,7 @@ func NewLexer(sql string) *Lexer {
 }
 func (le *Lexer) peek(n int) ([]byte, error) {
 	if readCh, err := le.reader.Peek(n); err != nil {
+		// 如果是读到末尾了, 那么就直接正常结束;
 		if errors.Is(err, io.EOF) {
 			return nil, nil
 		}
@@ -90,8 +91,7 @@ func (le *Lexer) nextWhile(fc func(r byte) bool) ([]byte, error) {
 				break
 			}
 			// 错误(未知错误,则抛出)
-			// panic(err)
-			break
+			return nil, err
 		}
 	}
 	// 如果是空格字节数组,不保存, 返回nil;
@@ -100,32 +100,37 @@ func (le *Lexer) nextWhile(fc func(r byte) bool) ([]byte, error) {
 	}
 	return result, nil
 }
-func (le *Lexer) nextIfToken(fc func(r byte) *Token) *Token {
-	if peek, _ := le.peek(1); peek != nil {
+func (le *Lexer) nextIfToken(fc func(r byte) *Token) (*Token, error) {
+	peek, err := le.peek(1)
+	if peek != nil {
 		token := fc(peek[0])
 		if token != nil {
 			le.readCh()
-			return token
+			return token, nil
 		}
+	} else {
+		return nil, err
 	}
-	return nil
+	return nil, nil
 }
-func (le *Lexer) next() *Token {
+func (le *Lexer) next() (*Token, error) {
 	token, err := le.Scan()
 	if err != nil {
-		util.Error("Scan error: %s\n", err)
-		return nil
+		return nil, util.Error("#next Scan error: %s\n", err)
 	}
 	if token == nil {
+		// 查看是否是 非法字符;
 		if peek, _ := le.peek(1); peek != nil {
-			util.Error("Unexpected character: %v \n", peek)
+			return nil, util.Error("#next Unexpected character: %s\n", peek)
 		}
-		return nil
+		return nil, nil
 	}
-	return token
+	return token, nil
 }
 func (le *Lexer) Scan() (*Token, error) {
 	var token *Token
+	var err error
+	var peek []byte
 	// 进入这个分支说明之前读过一个token, 但是又回退了;
 	// 因此下次读取时, 直接从栈中读取即可; 不用再解析;
 	if le.readOffset < len(le.tokenStack) {
@@ -135,41 +140,52 @@ func (le *Lexer) Scan() (*Token, error) {
 	} else {
 		le.readOffset += 1
 	}
-	if err := le.eraseWithSpace(); err != nil {
+	if err = le.eraseWithSpace(); err != nil {
 		return nil, err
 	}
-	if peek, err := le.peek(1); peek == nil {
+	if peek, err = le.peek(1); peek == nil {
 		return nil, err
 	} else {
 		if unicode.IsDigit(rune(peek[0])) {
-			token = le.scanNumber()
+			token, err = le.scanNumber()
 		} else if unicode.IsLetter(rune(peek[0])) {
-			token = le.scanIdent()
+			token, err = le.scanIdent()
 		} else if peek[0] == '"' || peek[0] == '\'' {
-			token = le.scanString()
+			token, err = le.scanString()
 		} else {
-			token = le.scanSymbol()
+			token, err = le.scanSymbol()
 		}
+	}
+	if err != nil {
+		return nil, err
 	}
 	le.tokenStack = append(le.tokenStack, token)
 	return token, nil
 }
-func (le *Lexer) peekScan() *Token {
-	token := le.next()
+func (le *Lexer) peekScan() (*Token, error) {
+	token, err := le.next()
+	if err != nil {
+		return nil, err
+	}
 	le.ReverseScan()
-	return token
+	return token, nil
 }
 func (le *Lexer) ReverseScan() {
 	if le.readOffset > 0 {
 		le.readOffset -= 1
 	}
 }
-func (le *Lexer) scanString() *Token {
+func (le *Lexer) scanString() (*Token, error) {
 	isOver := true
-	if nextIf, _ := le.nextIf(func(r byte) bool {
+	nextIf, err := le.nextIf(func(r byte) bool {
 		return r == '"' || r == '\''
-	}); nextIf == nil {
-		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	// 如果下一个字符 不是 字符串的起始 标记, 那么就返回;
+	if nextIf == nil {
+		return nil, nil
 	}
 	isOver = !isOver
 	var result []byte
@@ -177,7 +193,7 @@ func (le *Lexer) scanString() *Token {
 	for {
 		if ch, _ = le.readCh(); ch == nil {
 			if !isOver {
-				util.Error("Mismatch ' ")
+				return nil, util.Error("#scanString Mismatch ' ")
 			}
 			break
 		}
@@ -189,11 +205,11 @@ func (le *Lexer) scanString() *Token {
 		}
 	}
 	if result == nil || len(result) == 0 || string(result) == "" || string(result) == "''" {
-		util.Error("not  ''  ")
+		return nil, util.Error("not  ''  ")
 	}
-	return &Token{Type: STRING, Value: TokenValue(result)}
+	return &Token{Type: STRING, Value: TokenValue(result)}, nil
 }
-func (le *Lexer) scanNumber() *Token {
+func (le *Lexer) scanNumber() (*Token, error) {
 	// 数字可能包含小数点,或者只有一个数字,或者只是一个整数;
 	// 1.先扫描出前面一部分数字;
 	num, _ := le.nextWhile(func(r byte) bool {
@@ -208,26 +224,32 @@ func (le *Lexer) scanNumber() *Token {
 			return unicode.IsDigit(rune(r))
 		})
 		if num2 == nil || len(num2) == 0 || string(num2) == "" {
-			util.Error("error input number: %s\n", string(num))
+			return nil, util.Error("#scanNumber error input number: %s\n", string(num))
 		}
 		num = append(num, num2...)
 	}
-	//if num[len(num)-1] == '.' {
-	//	util.Error("Mismatch '.'")
-	//}
 	// 后面不是小数点:
 	// 1. 说明只读一个整数,返回即可;
 	// 2. 说明读到EOF末尾, 返回即可;
-	return &Token{Type: NUMBER, Value: TokenValue(num)}
+	return &Token{Type: NUMBER, Value: TokenValue(num)}, nil
 }
-func (le *Lexer) scanIdent() *Token {
+func (le *Lexer) scanIdent() (*Token, error) {
 	token := &Token{}
-	idnet, _ := le.nextIf(func(r byte) bool {
+	var err error
+	var idnet []byte
+	var idnet2 []byte
+	idnet, err = le.nextIf(func(r byte) bool {
 		return unicode.IsLetter(rune(r))
 	})
-	idnet2, _ := le.nextWhile(func(r byte) bool {
+	if err != nil {
+		return nil, err
+	}
+	idnet2, err = le.nextWhile(func(r byte) bool {
 		return isAlphanumeric(rune(r)) || r == '_'
 	})
+	if err != nil {
+		return nil, err
+	}
 	idnet = append(idnet, idnet2...)
 	value := strings.ToUpper(string(idnet))
 	// 如果是关键字, 则转为大写; 否则原样返回;
@@ -238,9 +260,9 @@ func (le *Lexer) scanIdent() *Token {
 		token.Value = TokenValue(idnet)
 		token.Type = IDENT
 	}
-	return token
+	return token, nil
 }
-func (le *Lexer) scanSymbol() *Token {
+func (le *Lexer) scanSymbol() (*Token, error) {
 	fc := func(c byte) *Token {
 		token := &Token{}
 		switch c {
@@ -282,8 +304,8 @@ func (le *Lexer) scanSymbol() *Token {
 		}
 		return token
 	}
-	token := le.nextIfToken(fc)
-	return token
+	token, err := le.nextIfToken(fc)
+	return token, err
 }
 
 // 检查单个字符是否为字母或数字;

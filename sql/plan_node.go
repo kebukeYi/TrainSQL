@@ -20,8 +20,8 @@ func (u *UpdateNode) FormatNode(f *strings.Builder, prefix string, root bool) {
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -43,8 +43,8 @@ func (c *CreateTableNode) FormatNode(f *strings.Builder, prefix string, root boo
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -65,8 +65,8 @@ func (d *DropTableNode) FormatNode(f *strings.Builder, prefix string, root bool)
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -89,8 +89,8 @@ func (i *InsertNode) FormatNode(f *strings.Builder, prefix string, root bool) {
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -112,8 +112,8 @@ func (s *ScanNode) FormatNode(f *strings.Builder, prefix string, root bool) {
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -138,8 +138,8 @@ func (d *DeleteNode) FormatNode(f *strings.Builder, prefix string, root bool) {
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -169,8 +169,8 @@ func (o *OrderNode) FormatNode(f *strings.Builder, prefix string, root bool) {
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -205,8 +205,8 @@ func (l *LimitNode) FormatNode(f *strings.Builder, prefix string, root bool) {
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -229,8 +229,8 @@ func (o *OffsetNode) FormatNode(f *strings.Builder, prefix string, root bool) {
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -253,8 +253,8 @@ func (p *ProjectNode) FormatNode(f *strings.Builder, prefix string, root bool) {
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -287,8 +287,8 @@ func (n *NestedLoopJoinNode) FormatNode(f *strings.Builder, prefix string, root 
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -298,7 +298,7 @@ func (n *NestedLoopJoinNode) FormatNode(f *strings.Builder, prefix string, root 
 		// 第二步：生成子节点的新前缀
 		prefix = "   " + prefix
 	}
-	f.WriteString("Nested Loop Join")
+	f.WriteString(" Nested Loop Join ")
 	if n.Predicate != nil {
 		f.WriteString(fmt.Sprintf("(%s)", n.Predicate.ToString()))
 	}
@@ -317,8 +317,8 @@ func (h *HashJoinNode) FormatNode(f *strings.Builder, prefix string, root bool) 
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -328,7 +328,7 @@ func (h *HashJoinNode) FormatNode(f *strings.Builder, prefix string, root bool) 
 		// 第二步：生成子节点的新前缀
 		prefix = "   " + prefix
 	}
-	f.WriteString("Hash Join")
+	f.WriteString(" Hash Join ")
 	if h.Predicate != nil {
 		f.WriteString(fmt.Sprintf("(%s)", h.Predicate.ToString()))
 	}
@@ -346,8 +346,8 @@ func (a *AggregateNode) FormatNode(f *strings.Builder, prefix string, root bool)
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -378,8 +378,8 @@ func (fi *FilterNode) FormatNode(f *strings.Builder, prefix string, root bool) {
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -403,8 +403,8 @@ func (i *IndexScanNode) FormatNode(f *strings.Builder, prefix string, root bool)
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "
@@ -426,8 +426,8 @@ func (p *PrimaryKeyScanNode) FormatNode(f *strings.Builder, prefix string, root 
 	if !root {
 		f.WriteString("\n")
 	} else {
-		f.WriteString("           SQL PLAN           ")
-		f.WriteString("------------------------------")
+		f.WriteString("           SQL PLAN           \n")
+		f.WriteString("------------------------------\n")
 	}
 	if prefix == "" {
 		prefix = "  ->  "

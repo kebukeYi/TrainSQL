@@ -14,19 +14,27 @@ func NewParser(inputSQL string) *Parser {
 	return &Parser{lexer: NewLexer(inputSQL)}
 }
 
-func (p *Parser) Parse() Statement {
-	statement := p.parseStatement()
-	p.nextExpect(&Token{Type: SEMICOLON, Value: Semicolon})
-	token := p.peek()
-	if token != nil {
-		util.Error("Unexpected token: %s\n", token.ToString())
+func (p *Parser) Parse() (Statement, error) {
+	statement, err := p.parseStatement()
+	if err != nil {
+		return nil, err
 	}
-	return statement
+	if err = p.nextExpect(&Token{Type: SEMICOLON, Value: Semicolon}); err != nil {
+		return nil, err
+	}
+	token, err := p.peek()
+	if err != nil {
+		return nil, err
+	}
+	if token != nil {
+		return nil, util.Error("Unexpected token: %s", token.ToString())
+	}
+	return statement, nil
 }
-func (p *Parser) peek() *Token {
+func (p *Parser) peek() (*Token, error) {
 	return p.lexer.peekScan()
 }
-func (p *Parser) next() *Token {
+func (p *Parser) next() (*Token, error) {
 	return p.lexer.next()
 }
 
@@ -34,38 +42,46 @@ func (p *Parser) next() *Token {
 // 无论是否匹配, 都会消耗一个 token;
 // 如果不是标识符, 返回 Err 中止解析;
 // 解析表名时使用;
-func (p *Parser) nextIdent() string {
-	token := p.next()
+func (p *Parser) nextIdent() (string, error) {
+	token, err := p.next()
 	if token == nil || token.Type != IDENT {
-		util.Error("Unexpected next token is ident, but is not;\n")
+		if err != nil {
+			return "", err
+		} else {
+			return "", util.Error("Unexpected next token is ident, but is not")
+		}
 	}
-	return string(token.Value)
+	return string(token.Value), nil
 }
 
 // 如果下一个 Token 是关键字类型, 则取出; 否则不取出, 返回nil;
 // 条件性关键字检查, 检查 数据库字段 的属性中是否 含有 NULL 关键字;
-func (p *Parser) nextIfKeyWord() *Token {
+func (p *Parser) nextIfKeyWord() (*Token, error) {
 	return p.nextIf(func(token *Token) bool {
 		return token.Type == KEYWORD
 	})
 }
 
 // nextExpect: 强制消费, 要求下一个 token 必须匹配预期值,否则报错;
-func (p *Parser) nextExpect(expect *Token) {
-	token := p.next()
+func (p *Parser) nextExpect(expect *Token) error {
+	token, err := p.next()
 	if token == nil {
-		util.Error("Expect %s, but got nil\n", expect.ToString())
+		if err != nil {
+			return err
+		} else {
+			return util.Error("Expect %s, but got nil", expect.ToString())
+		}
 	}
-	if token != nil && !token.equal(expect) {
-		util.Error("Expect %s, but got %s\n", expect.ToString(), token.ToString())
+	if !token.equal(expect) {
+		return util.Error("Expect %s, but got %s", expect.ToString(), token.ToString())
 	}
+	return nil
 }
 
-// nextIfToken: 仅在匹配事消费token,不匹配时返回 None,不报错,继续解析;
+// nextIfToken: 仅在匹配时,消费掉token; 不匹配时返回 nil,不报错,继续解析;
 func (p *Parser) nextIfToken(token *Token) *Token {
-	next := p.next()
+	next, _ := p.next()
 	if next != nil && !next.equal(token) {
-		//util.Error("Expect %s, but got %s\n", token.ToString(), next.ToString())
 		p.lexer.ReverseScan()
 		return nil
 	}
@@ -73,17 +89,24 @@ func (p *Parser) nextIfToken(token *Token) *Token {
 }
 
 // nextIf: 如果满足条件, 则取出当前 Token, 否则不取出, 并返回 nil;
-func (p *Parser) nextIf(fc func(*Token) bool) *Token {
-	token := p.peek()
+func (p *Parser) nextIf(fc func(*Token) bool) (*Token, error) {
+	token, err := p.peek()
+	if err != nil {
+		return nil, err
+	}
 	if fc(token) {
 		return p.lexer.next()
 	}
-	return nil
+	return nil, nil
 }
 
-func (p *Parser) parseStatement() Statement {
-	if token := p.peek(); token == nil {
-		util.Error("[Parser] #parseStatement: Unexpected end of input.")
+func (p *Parser) parseStatement() (Statement, error) {
+	if token, err := p.peek(); token == nil {
+		if err != nil {
+			return nil, err
+		} else {
+			return nil, util.Error("#parseStatement: Unexpected end of input")
+		}
 	} else {
 		if token.Type == KEYWORD {
 			switch token.Value {
@@ -110,86 +133,99 @@ func (p *Parser) parseStatement() Statement {
 			case Explain:
 				return p.parseExplain()
 			default:
-				panic("unhandled default case")
+				return nil, util.Error("#parseStatement: Unhandled default case: %s", token.ToString())
 			}
-			return nil
 		}
-		util.Error("[Parser] #parseStatement: Unexpected token: %s\n", token.ToString())
+		return nil, util.Error("#parseStatement: Expected KEYWORD token, but get: %s", token.ToString())
 	}
-	return nil
 }
-func (p *Parser) parseDdl() Statement {
-	token := p.next()
+func (p *Parser) parseDdl() (Statement, error) {
+	token, _ := p.next()
 	if token == nil {
-		panic("token is not create drop token;")
+		return nil, util.Error("#parseDdl: Unexpected end of input")
 	}
 	value := token.Value
 	if value == Create {
-		if token2 := p.peek(); token2 == nil {
-			panic("table Execute is not null")
+		if token2, _ := p.peek(); token2 == nil {
+			return nil, util.Error("#parseDdl: table Execute is not null")
 		} else {
 			if token2.Value == Table {
 				return p.parseDdlCreateTable()
 			} else if token2.Value == Index {
 				return p.parseDdlCreateIndex()
 			} else {
-				util.Error("[Parser] #parseDdl: Unhandled default case: %s\n;", token2.Value)
+				return nil, util.Error("#parseDdl: Unhandled default case: %s", token2.ToString())
 			}
 		}
 	} else if value == Drop {
 		return p.parseDdlDropTable()
 	} else {
-		panic("unhandled parseDdl default case")
+		return nil, util.Error("#parseDdl: unhandled parseDdl default case")
 	}
-	return nil
 }
-func (p *Parser) parseDdlCreateTable() Statement {
-	if token := p.next(); token == nil {
-		panic("table Execute is not create")
+func (p *Parser) parseDdlCreateTable() (Statement, error) {
+	if token, _ := p.next(); token == nil {
+		return nil, util.Error("#parseDdlCreateTable: table is not null")
 	} else if token.Value != Table {
-		util.Error("")
+		return nil, util.Error("#parseDdlCreateTable: table is not null")
 	}
-	tableName := p.nextIdent()
-	p.nextExpect(&Token{Type: OPENPAREN, Value: OpenPar})
+	tableName, _ := p.nextIdent()
+	err := p.nextExpect(&Token{Type: OPENPAREN, Value: OpenPar})
+	if err != nil {
+		return nil, err
+	}
 	var columns []*types.Column
 	// CREATE TABLE user (id INT, name VARCHAR NOT NULL, age INT DEFAULT 0);
 	for {
-		column := p.parseDdlColumn()
+		column, err := p.parseDdlColumn()
+		if err != nil {
+			return nil, err
+		}
 		columns = append(columns, column)
 		if token := p.nextIfToken(&Token{Type: COMMA, Value: Comma}); token == nil {
 			break
 		}
 	}
-	p.nextExpect(&Token{Type: CLOSEPAREN, Value: ClosePar})
+	err = p.nextExpect(&Token{Type: CLOSEPAREN, Value: ClosePar})
+	if err != nil {
+		return nil, err
+	}
 	creatTableData := &CreatTableData{
 		TableName: tableName,
 		Columns:   columns,
 	}
-	return creatTableData
+	return creatTableData, nil
 }
-func (p *Parser) parseDdlDropTable() Statement {
-	p.nextExpect(&Token{Type: KEYWORD, Value: Table})
-	dropTableData := &DropTableData{
-		TableName: p.nextIdent(),
+func (p *Parser) parseDdlDropTable() (Statement, error) {
+	err := p.nextExpect(&Token{Type: KEYWORD, Value: Table})
+	if err != nil {
+		return nil, err
 	}
-	return dropTableData
+	tableName, _ := p.nextIdent()
+	dropTableData := &DropTableData{
+		TableName: tableName,
+	}
+	return dropTableData, nil
 }
-func (p *Parser) parseDdlCreateIndex() Statement {
-	return nil
+func (p *Parser) parseDdlCreateIndex() (Statement, error) {
+	return nil, nil
 }
-func (p *Parser) parseExpression() *types.Expression {
-	token := p.next()
+func (p *Parser) parseExpression() (*types.Expression, error) {
+	token, _ := p.next()
 	var con types.Const
 	switch token.Type {
 	case IDENT:
 		// 函数
 		// count(col_name)
 		if p.nextIfToken(&Token{Type: OPENPAREN, Value: OpenPar}) != nil {
-			colName := p.nextIdent()
-			p.nextExpect(&Token{Type: CLOSEPAREN, Value: ClosePar})
-			return &types.Expression{Function: &types.Function{FuncName: string(token.Value), ColName: colName}}
+			colName, _ := p.nextIdent()
+			err := p.nextExpect(&Token{Type: CLOSEPAREN, Value: ClosePar})
+			if err != nil {
+				return nil, err
+			}
+			return &types.Expression{Function: &types.Function{FuncName: string(token.Value), ColName: colName}}, nil
 		} else {
-			return &types.Expression{Field: string(token.Value)}
+			return &types.Expression{Field: string(token.Value)}, nil
 		}
 	case NUMBER:
 		if util.IsIntegerStrict(string(token.Value)) {
@@ -204,9 +240,15 @@ func (p *Parser) parseExpression() *types.Expression {
 			}
 		}
 	case OPENPAREN:
-		expression := p.computeMathOperator(1)
-		p.nextExpect(&Token{Type: CLOSEPAREN, Value: ClosePar})
-		return expression
+		expression, err := p.computeMathOperator(1)
+		if err != nil {
+			return nil, err
+		}
+		err = p.nextExpect(&Token{Type: CLOSEPAREN, Value: ClosePar})
+		if err != nil {
+			return nil, err
+		}
+		return expression, nil
 	case STRING:
 		con = &types.ConstString{
 			Value: string(token.Value),
@@ -224,23 +266,29 @@ func (p *Parser) parseExpression() *types.Expression {
 				Value: false,
 			}
 		default:
-			panic("keyword is not support")
+			return nil, util.Error("#parseExpression: Unhandled default case: %s", token.ToString())
 		}
 	default:
-		panic("unhandled default case")
+		return nil, util.Error("#parseExpression: Unhandled default case: %s", token.ToString())
 	}
-	return types.NewExpression(con)
+	return types.NewExpression(con), nil
 }
 
 // parseDdlColumn 解析列定义;
-func (p *Parser) parseDdlColumn() *types.Column {
+func (p *Parser) parseDdlColumn() (*types.Column, error) {
 	// CREATE TABLE user (id INT, name VARCHAR NOT NULL, age INT DEFAULT 0);
-	filedName := p.nextIdent()
-	dataTypeToken := p.next()
-	if dataTypeToken == nil || dataTypeToken.Type != KEYWORD {
-		util.Error("[Parser] #parseDdlColumn: Expect data type, but got %s\n", dataTypeToken.ToString())
+	filedName, err := p.nextIdent()
+	if err != nil {
+		return nil, err
 	}
-	dataType := p.parserDataType(dataTypeToken)
+	dataTypeToken, _ := p.next()
+	if dataTypeToken == nil || dataTypeToken.Type != KEYWORD {
+		return nil, util.Error("[Parser] #parseDdlColumn: Expect data type, but got err type or nil")
+	}
+	dataType, err := p.parserDataType(dataTypeToken)
+	if err != nil {
+		return nil, err
+	}
 	column := &types.Column{
 		Name:         filedName,
 		DateType:     dataType,
@@ -252,94 +300,120 @@ func (p *Parser) parseDdlColumn() *types.Column {
 	// 解析列的默认值，以及是否可以为空;
 	for {
 		// column_name INT NOT NULL DEFAULT 0
-		if token := p.nextIfKeyWord(); token != nil {
+		if token, _ := p.nextIfKeyWord(); token != nil {
 			switch token.Value {
 			case Null:
 				column.Nullable = true
 			case Not:
-				p.nextExpect(&Token{Type: KEYWORD, Value: Null})
+				err = p.nextExpect(&Token{Type: KEYWORD, Value: Null})
+				if err != nil {
+					return nil, err
+				}
 				column.Nullable = false
 			case Default:
-				column.DefaultValue = p.parseExpression()
+				expr, err := p.parseExpression()
+				if err != nil {
+					return nil, err
+				}
+				column.DefaultValue = expr
 			case Primary:
-				p.nextExpect(&Token{Type: KEYWORD, Value: Key})
+				err = p.nextExpect(&Token{Type: KEYWORD, Value: Key})
+				if err != nil {
+					return nil, err
+				}
 				column.PrimaryKey = true
 			case Index:
 				column.IsIndex = true
 			default:
-				util.Error("[Parser] Unexpected keyword: %s\n", token.Value)
+				return nil, util.Error("[Parser] Unexpected keyword: %s", token.ToString())
 			}
 		} else {
 			break
 		}
 	}
-	return column
+	return column, nil
 }
-func (p *Parser) parserDataType(token *Token) types.DataType {
+func (p *Parser) parserDataType(token *Token) (types.DataType, error) {
 	// todo 根据输入字符串来定义数据类型;
 	switch token.Value {
 	case Int:
-		return types.Integer
+		return types.Integer, nil
 	case Integer:
-		return types.Integer
+		return types.Integer, nil
 	case String:
-		return types.String
+		return types.String, nil
 	case Varchar:
-		return types.String
+		return types.String, nil
 	case Text:
-		return types.String
+		return types.String, nil
 	case Char:
-		return types.String
+		return types.String, nil
 	case Bool:
-		return types.Boolean
+		return types.Boolean, nil
 	case Boolean:
-		return types.Boolean
+		return types.Boolean, nil
 	case Float:
-		return types.Float
+		return types.Float, nil
 	case Double:
-		return types.Float
+		return types.Float, nil
 	default:
-		panic("dataType is not support")
+		return -1, util.Error("#parserDataType token.dataType[%s] is not support", token.ToString())
 	}
 }
-func (p *Parser) parseInsert() Statement {
-	p.nextExpect(&Token{Type: KEYWORD, Value: Insert})
-	p.nextExpect(&Token{Type: KEYWORD, Value: Into})
+func (p *Parser) parseInsert() (Statement, error) {
+	var err error
+	err = p.nextExpect(&Token{Type: KEYWORD, Value: Insert})
+	if err != nil {
+		return nil, err
+	}
+	err = p.nextExpect(&Token{Type: KEYWORD, Value: Into})
+	if err != nil {
+		return nil, err
+	}
 	// 表名
-	tableName := p.nextIdent()
+	tableName, _ := p.nextIdent()
 	var columns []string
 	// 查看是否给指定的列进行 insert
 	if ifToken := p.nextIfToken(&Token{Type: OPENPAREN, Value: OpenPar}); ifToken != nil {
 		var cols []string
 		// insert into tbl (a, b, c) Values (1, 2, 3),(4, 5, 6);
 		for {
-			ident := p.nextIdent()
+			ident, _ := p.nextIdent()
 			cols = append(cols, ident)
-			if next := p.next(); next.Type == COMMA {
+			if next, _ := p.next(); next.Type == COMMA {
 				continue
 			} else if next.Type == CLOSEPAREN {
 				break
 			} else {
-				util.Error("Unexpected token: %s\n", next.ToString())
+				return nil, util.Error("Unexpected token: %s\n", next.ToString())
 			}
 		}
 		columns = cols
 	}
-	p.nextExpect(&Token{Type: KEYWORD, Value: Values})
+	err = p.nextExpect(&Token{Type: KEYWORD, Value: Values})
+	if err != nil {
+		return nil, err
+	}
 	// insert into tbl (a, b, c) Values (1, 2, 3),(4, 5, 6);
 	var values [][]*types.Expression
 	for {
-		p.nextExpect(&Token{Type: OPENPAREN, Value: OpenPar})
+		err = p.nextExpect(&Token{Type: OPENPAREN, Value: OpenPar})
+		if err != nil {
+			return nil, err
+		}
 		var exprs []*types.Expression
 		for {
-			expression := p.parseExpression()
+			expression, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
 			exprs = append(exprs, expression)
-			if next := p.next(); next.Type == COMMA {
+			if next, _ := p.next(); next.Type == COMMA {
 				continue
 			} else if next.Type == CLOSEPAREN {
 				break
 			} else {
-				util.Error("Unexpected token: %s\n", next.ToString())
+				return nil, util.Error("Unexpected token: %s\n", next.ToString())
 			}
 		}
 		values = append(values, exprs)
@@ -352,32 +426,64 @@ func (p *Parser) parseInsert() Statement {
 		TableName: tableName,
 		Values:    values,
 		Columns:   columns,
-	}
+	}, nil
 }
-func (p *Parser) parseSelect() Statement {
+func (p *Parser) parseSelect() (Statement, error) {
 	selectData := &SelectData{}
-	selectData.SelectCols = p.parseSelectClause()
-	selectData.From = p.parseFromClause()
-	selectData.WhereClause = p.parseWhereClause()
-	selectData.GroupBy = p.parseGroupByClause()
-	selectData.Having = p.parseHavingClause()
-	selectData.OrderBy = p.parseOrderByClause()
-	selectData.Limit = p.parseLimitClause()
-	selectData.Offset = p.parseOffsetClause()
-	return selectData
+	var err error
+	selectData.SelectCols, err = p.parseSelectClause()
+	if err != nil {
+		return nil, err
+	}
+	selectData.From, err = p.parseFromClause()
+	if err != nil {
+		return nil, err
+	}
+	selectData.WhereClause, err = p.parseWhereClause()
+	if err != nil {
+		return nil, err
+	}
+	selectData.GroupBy, err = p.parseGroupByClause()
+	if err != nil {
+		return nil, err
+	}
+	selectData.Having, err = p.parseHavingClause()
+	if err != nil {
+		return nil, err
+	}
+	selectData.OrderBy, err = p.parseOrderByClause()
+	if err != nil {
+		return nil, err
+	}
+	selectData.Limit, err = p.parseLimitClause()
+	if err != nil {
+		return nil, err
+	}
+	selectData.Offset, err = p.parseOffsetClause()
+	if err != nil {
+		return nil, err
+	}
+	return selectData, nil
 }
 
-func (p *Parser) parseSelectClause() []*SelectCol {
-	p.nextExpect(&Token{Type: KEYWORD, Value: Select})
+func (p *Parser) parseSelectClause() ([]*SelectCol, error) {
+	var err error
+	err = p.nextExpect(&Token{Type: KEYWORD, Value: Select})
+	if err != nil {
+		return nil, err
+	}
 	SeqSelectCol := make([]*SelectCol, 0)
 	if token := p.nextIfToken(&Token{Type: ASTERISK, Value: Asterisk}); token != nil {
-		return SeqSelectCol
+		return SeqSelectCol, nil
 	}
 	for {
-		expression := p.parseExpression()
+		expression, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
 		selectCol := &SelectCol{Expr: expression}
 		if token := p.nextIfToken(&Token{Type: KEYWORD, Value: As}); token != nil {
-			selectCol.Alis = p.nextIdent()
+			selectCol.Alis, _ = p.nextIdent()
 		} else {
 			selectCol.Alis = ""
 		}
@@ -388,29 +494,45 @@ func (p *Parser) parseSelectClause() []*SelectCol {
 			break
 		}
 	}
-	return SeqSelectCol
+	return SeqSelectCol, nil
 }
-func (p *Parser) parseFromClause() FromItem {
+func (p *Parser) parseFromClause() (FromItem, error) {
 	// From 关键字
-	p.nextExpect(&Token{Type: KEYWORD, Value: From})
+	var err error
+	err = p.nextExpect(&Token{Type: KEYWORD, Value: From})
+	if err != nil {
+		return nil, err
+	}
 	// 第一个表名
-	item := p.parseFromTableClause()
+	item, err := p.parseFromTableClause()
+	if err != nil {
+		return nil, err
+	}
 	// 是否有 Join
 	for {
-		if joinType := p.parseFromJoinClause(); joinType != -1 {
+		if joinType, err := p.parseFromJoinClause(); joinType != -1 {
 			left := item
-			right := p.parseFromTableClause()
+			right, err := p.parseFromTableClause()
+			if err != nil {
+				return nil, err
+			}
 			if right == nil {
-				return nil
+				return nil, nil
 			}
 			var predicate *types.Expression
 			if joinType == CrossType {
 				predicate = nil
 			} else {
-				p.nextExpect(&Token{Type: KEYWORD, Value: On})
-				l := p.parseExpression()
-				p.nextExpect(&Token{Type: EQUAL, Value: Equal})
-				r := p.parseExpression()
+				err = p.nextExpect(&Token{Type: KEYWORD, Value: On})
+				if err != nil {
+					return nil, err
+				}
+				l, _ := p.parseExpression()
+				err = p.nextExpect(&Token{Type: EQUAL, Value: Equal})
+				if err != nil {
+					return nil, err
+				}
+				r, _ := p.parseExpression()
 				if joinType == RightType {
 					l, r = r, l
 				}
@@ -427,53 +549,77 @@ func (p *Parser) parseFromClause() FromItem {
 				Predicate: predicate,
 			}
 		} else {
-			return item
+			if err != nil {
+				return nil, err
+			} else {
+				return item, nil
+			}
 		}
 	}
 }
-func (p *Parser) parseFromTableClause() FromItem {
+func (p *Parser) parseFromTableClause() (FromItem, error) {
+	tableName, err := p.nextIdent()
+	if err != nil {
+		return nil, err
+	}
 	return &TableItem{
-		TableName: p.nextIdent(),
-	}
+		TableName: tableName,
+	}, nil
 }
-func (p *Parser) parseFromJoinClause() JoinType {
+func (p *Parser) parseFromJoinClause() (JoinType, error) {
+	var err error
 	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Cross}); token != nil {
-		p.nextExpect(&Token{Type: KEYWORD, Value: Join})
-		return CrossType
+		err = p.nextExpect(&Token{Type: KEYWORD, Value: Join})
+		if err != nil {
+			return -1, err
+		}
+		return CrossType, nil
 	} else if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Join}); token != nil {
-		return InnerType
+		return InnerType, nil
 	} else if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Left}); token != nil {
-		p.nextExpect(&Token{Type: KEYWORD, Value: Join})
-		return LeftType
+		err = p.nextExpect(&Token{Type: KEYWORD, Value: Join})
+		if err != nil {
+			return -1, err
+		}
+		return LeftType, nil
 	} else if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Right}); token != nil {
-		p.nextExpect(&Token{Type: KEYWORD, Value: Join})
-		return RightType
+		err = p.nextExpect(&Token{Type: KEYWORD, Value: Join})
+		if err != nil {
+			return -1, err
+		}
+		return RightType, nil
 	}
-	return -1
+	return -1, nil
 }
-func (p *Parser) parseGroupByClause() *types.Expression {
+func (p *Parser) parseGroupByClause() (*types.Expression, error) {
 	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Group}); token != nil {
-		p.nextExpect(&Token{Type: KEYWORD, Value: By})
+		err := p.nextExpect(&Token{Type: KEYWORD, Value: By})
+		if err != nil {
+			return nil, err
+		}
 		return p.parseExpression()
 	}
-	return nil
+	return nil, nil
 }
-func (p *Parser) parseHavingClause() *types.Expression {
+func (p *Parser) parseHavingClause() (*types.Expression, error) {
 	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Having}); token != nil {
 		return p.parseOperationExpr()
 	}
-	return nil
+	return nil, nil
 
 }
-func (p *Parser) parseOrderByClause() []*OrderDirection {
+func (p *Parser) parseOrderByClause() ([]*OrderDirection, error) {
 	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Order}); token == nil {
-		return nil
+		return nil, nil
 	}
 	orders := make([]*OrderDirection, 0)
-	p.nextExpect(&Token{Type: KEYWORD, Value: By})
+	err := p.nextExpect(&Token{Type: KEYWORD, Value: By})
+	if err != nil {
+		return nil, err
+	}
 	for {
-		col := p.nextIdent()
-		token := p.nextIf(func(token *Token) bool {
+		col, _ := p.nextIdent()
+		token, _ := p.nextIf(func(token *Token) bool {
 			return token.equal(&Token{Type: KEYWORD, Value: Asc}) || token.equal(&Token{Type: KEYWORD, Value: Desc})
 		})
 		orderDirection := &OrderDirection{colName: col}
@@ -493,127 +639,160 @@ func (p *Parser) parseOrderByClause() []*OrderDirection {
 			break
 		}
 	}
-	return orders
+	return orders, nil
 
 }
-func (p *Parser) parseLimitClause() *types.Expression {
+func (p *Parser) parseLimitClause() (*types.Expression, error) {
 	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Limit}); token != nil {
 		return p.parseExpression()
 	}
-	return nil
+	return nil, nil
 }
-func (p *Parser) parseOffsetClause() *types.Expression {
+func (p *Parser) parseOffsetClause() (*types.Expression, error) {
 	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Offset}); token != nil {
 		return p.parseExpression()
 	}
-	return nil
+	return nil, nil
 }
 
-func (p *Parser) parseDelete() Statement {
-	p.nextExpect(&Token{Type: KEYWORD, Value: Delete})
-	p.nextExpect(&Token{Type: KEYWORD, Value: From})
-	tableName := p.nextIdent()
-	whereClause := p.parseWhereClause()
+func (p *Parser) parseDelete() (Statement, error) {
+	var err error
+	err = p.nextExpect(&Token{Type: KEYWORD, Value: Delete})
+	if err != nil {
+		return nil, err
+	}
+	err = p.nextExpect(&Token{Type: KEYWORD, Value: From})
+	if err != nil {
+		return nil, err
+	}
+	tableName, _ := p.nextIdent()
+	whereClause, _ := p.parseWhereClause()
 	return &DeleteData{
 		TableName:   tableName,
 		WhereClause: whereClause,
-	}
+	}, nil
 
 }
-func (p *Parser) parseUpdate() Statement {
-	p.nextExpect(&Token{Type: KEYWORD, Value: Update})
-	tableName := p.nextIdent()
-	p.nextExpect(&Token{Type: KEYWORD, Value: Set})
+func (p *Parser) parseUpdate() (Statement, error) {
+	var err error
+	err = p.nextExpect(&Token{Type: KEYWORD, Value: Update})
+	if err != nil {
+		return nil, err
+	}
+	tableName, _ := p.nextIdent()
+	err = p.nextExpect(&Token{Type: KEYWORD, Value: Set})
+	if err != nil {
+		return nil, err
+	}
 	columns := make(map[string]*types.Expression)
 	for {
 		// update user set name = 'tom', age = 18 where id = 1;
 		// update user set age = age + 1  where id = 1;
 		// update user set age = 12  where id = 1;
 		// update user set age = 12+12  where id = 1;
-		colName := p.nextIdent()
-		p.nextExpect(&Token{Type: EQUAL, Value: Equal})
-		value := p.parseExpression()
+		colName, _ := p.nextIdent()
+		err = p.nextExpect(&Token{Type: EQUAL, Value: Equal})
+		if err != nil {
+			return nil, err
+		}
+		value, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
 		if _, ok := columns[colName]; ok {
-			util.Error("column is already exists")
+			return nil, util.Error("#parseUpdate column[%s] is already exists", colName)
 		}
 		columns[colName] = value
 		if p.nextIfToken(&Token{Type: COMMA, Value: Comma}) == nil {
 			break
 		}
 	}
-	whereClause := p.parseWhereClause()
+	whereClause, _ := p.parseWhereClause()
 	return &UpdateData{
 		TableName:   tableName,
 		WhereClause: whereClause,
 		Columns:     columns,
-	}
+	}, nil
 }
-func (p *Parser) parseWhereClause() *types.Expression {
+func (p *Parser) parseWhereClause() (*types.Expression, error) {
+	// 检测后面是否有 where 关键字, 没有也可以;
 	if token := p.nextIfToken(&Token{Type: KEYWORD, Value: Where}); token == nil {
-		return nil
+		return nil, nil
 	}
 	return p.parseOperationExpr()
 }
 
-func (p *Parser) parseOperationExpr() *types.Expression {
-	left := p.parseExpression()
-	if next := p.next(); next != nil {
+func (p *Parser) parseOperationExpr() (*types.Expression, error) {
+	left, err := p.parseExpression()
+	if err != nil {
+		return nil, err
+	}
+	if next, err := p.next(); next != nil {
+		right, err := p.computeMathOperator(1)
+		if err != nil {
+			return nil, err
+		}
 		switch next.Type {
 		case EQUAL:
 			return &types.Expression{
 				OperationVal: &types.OperationEqual{
 					Left:  left,
-					Right: p.computeMathOperator(1),
+					Right: right,
 				},
-			}
+			}, nil
 		case GREATERTHAN:
 			return &types.Expression{
 				OperationVal: &types.OperationGreaterThan{
 					Left:  left,
-					Right: p.computeMathOperator(1),
+					Right: right,
 				},
-			}
+			}, nil
 		case LESSTHAN:
 			return &types.Expression{
 				OperationVal: &types.OperationLessThan{
 					Left:  left,
-					Right: p.computeMathOperator(1),
+					Right: right,
 				},
-			}
+			}, nil
 		default:
-			util.Error("unhandled default case %s\n;", next.ToString())
+			return nil, util.Error("#parseOperationExpr unhandled default case %s", next.ToString())
 		}
 	} else {
-		panic("unhandled default case")
+		return nil, err
 	}
-	return nil
 }
-func (p *Parser) parseTransaction() Statement {
-	if next := p.next(); next != nil {
+func (p *Parser) parseTransaction() (Statement, error) {
+	if next, _ := p.next(); next != nil {
 		if next.Value == Begin {
-			return &BeginData{}
+			return &BeginData{}, nil
 		} else if next.Value == Commit {
-			return &CommitData{}
+			return &CommitData{}, nil
 		} else if next.Value == Rollback {
-			return &RollbackData{}
+			return &RollbackData{}, nil
 		} else {
-			util.Error("[parseTransaction] unhandled default case %s\n;", next.ToString())
+			return nil, util.Error("#parseTransaction unhandled default case %s\n;", next.ToString())
 		}
 	}
-	return nil
+	return nil, nil
 }
-func (p *Parser) parseExplain() Statement {
-	p.nextExpect(&Token{Type: KEYWORD, Value: Explain})
-	if next := p.peek(); next != nil {
+func (p *Parser) parseExplain() (Statement, error) {
+	err := p.nextExpect(&Token{Type: KEYWORD, Value: Explain})
+	if err != nil {
+		return nil, err
+	}
+	if next, _ := p.peek(); next != nil {
 		if next.Value == Explain {
-			util.Error("can not nest explain statement")
+			return nil, util.Error("#parseExplain can not nest explain statement")
 		}
 	}
 	// source Node
-	statement := p.parseStatement()
+	statement, err := p.parseStatement()
+	if err != nil {
+		return nil, err
+	}
 	return &ExplainData{
 		Statements: statement,
-	}
+	}, nil
 }
 
 func (p *Parser) parseDdlCreateView() Statement {
@@ -621,21 +800,24 @@ func (p *Parser) parseDdlCreateView() Statement {
 	return nil
 }
 
-func (p *Parser) parseShow() Statement {
-	p.nextExpect(&Token{Type: KEYWORD, Value: Show})
-	if token := p.next(); token != nil {
+func (p *Parser) parseShow() (Statement, error) {
+	err := p.nextExpect(&Token{Type: KEYWORD, Value: Show})
+	if err != nil {
+		return nil, err
+	}
+	if token, _ := p.next(); token != nil {
 		if token.Value == Table {
-			tableName := p.nextIdent()
+			tableName, _ := p.nextIdent()
 			return &ShowTableData{
 				// 展示指定表信息
 				TableName: tableName,
-			}
+			}, nil
 		} else if token.Value == DataBase {
 			// 展示全部表;
-			return &ShowTDataBaseData{}
+			return &ShowTDataBaseData{}, nil
 		} else {
-			util.Error("[parseShow] unhandled default case %s;\n", token.ToString())
+			return nil, util.Error("#parseShow unhandled default case %s", token.ToString())
 		}
 	}
-	return nil
+	return nil, nil
 }

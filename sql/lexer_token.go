@@ -125,40 +125,52 @@ func (t *Token) precedence() int32 {
 	return 0
 }
 
-func (t *Token) computeExpr(l, r *types.Expression) *types.Expression {
+func (t *Token) computeExpr(l, r *types.Expression) (*types.Expression, error) {
 	var val float64
+	var err error
 	var con types.Const
 	if l.ConstVal != nil && r.ConstVal != nil {
-		val = t.compute(l.ConstVal.Into().(float64), r.ConstVal.Into().(float64))
+		left, ok := l.ConstVal.Into().(float64)
+		if !ok {
+			return nil, util.Error("#computeExpr cannot compute the left Expression %s", l.ConstVal.Into())
+		}
+		right, ok := r.ConstVal.Into().(float64)
+		if !ok {
+			return nil, util.Error("#computeExpr cannot compute the right Expression %s", r.ConstVal.Into())
+		}
+		val, err = t.compute(left, right)
+		if err != nil {
+			return nil, err
+		}
 	} else {
-		util.Error("[computeExpr] Unexpected operator: %s\n", t.Value)
+		// 存在一方的值为空;
+		return nil, util.Error("#computeExpr cannot compute the left right Expression")
 	}
 	con = &types.ConstFloat{Value: val}
-	return types.NewExpression(con)
+	return types.NewExpression(con), nil
 }
 
-func (t *Token) compute(l, r float64) float64 {
+func (t *Token) compute(l, r float64) (float64, error) {
 	if t.Type == MINUS {
-		return l - r
+		return l - r, nil
 	}
 	if t.Type == ASTERISK {
-		return l * r
+		return l * r, nil
 	}
 	if t.Type == SLASH {
-		return l / r
+		return l / r, nil
 	}
 	if t.Type == PLUS {
-		return l + r
+		return l + r, nil
 	}
-	util.Error("Unexpected operator: %s\n", t.Value)
-	return -1
+	return -1, util.Error("#compute Unexpected operator: %s", t.ToString())
 }
 func (t *Token) equal(s *Token) bool {
 	return t.Type == s.Type && t.Value == s.Value
 }
 
 func (t *Token) ToString() string {
-	return fmt.Sprintf("Token{Type:%d, Vaule:%s}", t.Type, t.Value)
+	return fmt.Sprintf("Token{Type:%d, Value:%s}", t.Type, t.Value)
 }
 
 func InitWord() map[string]*Token {

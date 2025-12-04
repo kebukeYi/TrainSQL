@@ -28,8 +28,11 @@ func NewKVService(t *storage.Transaction) *KVService {
 		txn: t,
 	}
 }
-func (s *KVService) CreateRow(tableName string, row types.Row) {
-	table := s.MustGetTable(tableName)
+func (s *KVService) CreateRow(tableName string, row types.Row) error {
+	table, err := s.MustGetTable(tableName)
+	if err != nil {
+		return util.Error("[CreateRow] table not exists")
+	}
 	// 校验 row 行每一列的的有效性;
 	for i, column := range table.Columns {
 		dateType := row[i].DateType()
@@ -37,11 +40,11 @@ func (s *KVService) CreateRow(tableName string, row types.Row) {
 			if column.Nullable == true {
 				continue
 			} else {
-				util.Error("[CreateRow] column %s can not be null", column.Name)
+				return util.Error("[CreateRow] column %s can not be null", column.Name)
 			}
 		}
 		if dateType != column.DataType {
-			util.Error("[CreateRow] column type not match")
+			return util.Error("[CreateRow] column type not match")
 		}
 	}
 	// 找到 此行的主键, 作为该行数据的唯一标识;
@@ -50,14 +53,17 @@ func (s *KVService) CreateRow(tableName string, row types.Row) {
 	rowKey := GetRowKey(tableName, pk)
 	// key: tableName_primaryKey 是否已经存在; Row_test1
 	if get := s.txn.Get(rowKey); get != nil {
-		util.Error("[CreateRow] row already exists")
+		return util.Error("[CreateRow] row already exists")
 	}
 	var buffer bytes.Buffer
 	encoder := gob.NewEncoder(&buffer)
 	if err := encoder.Encode(row); err != nil {
-		util.Error("encode row error:%s", err)
+		return util.Error("#CreateRow encode row error:%s", err)
 	}
-	s.txn.Set(rowKey, buffer.Bytes())
+	err = s.txn.Set(rowKey, buffer.Bytes())
+	if err != nil {
+		return util.Error("#CreateRow set row error:%s", err)
+	}
 	// 维护索引, 主键索引需要维护吗?
 	indexCol := make(map[int]types.ColumnV)
 	for i, column := range table.Columns {
@@ -67,16 +73,26 @@ func (s *KVService) CreateRow(tableName string, row types.Row) {
 	}
 	// 多个索引;
 	for i, column := range indexCol {
-		loadIndex := s.LoadIndex(tableName, column.Name, row[i])
+		loadIndex, err := s.LoadIndex(tableName, column.Name, row[i])
+		if err != nil {
+			return err
+		}
 		loadIndex = append(loadIndex, pk)
-		s.SaveIndex(tableName, column.Name, row[i], loadIndex)
+		err = s.SaveIndex(tableName, column.Name, row[i], loadIndex)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
-func (s *KVService) ScanTable(tableName string, filter *types.Expression) []types.Row {
+func (s *KVService) ScanTable(tableName string, filter *types.Expression) ([]types.Row, error) {
 	// prefixRowKey: Row_user
 	// 扫描数据时, 需要过滤一些数据;
 	prefixRowKey := GetPrefixRowKey(tableName)
-	table := s.MustGetTable(tableName)
+	table, err := s.MustGetTable(tableName)
+	if err != nil {
+		return nil, err
+	}
 	resultPairs := s.txn.ScanPrefix(prefixRowKey, true)
 	rows := make([]types.Row, 0)
 	for _, resultPair := range resultPairs {
@@ -87,14 +103,17 @@ func (s *KVService) ScanTable(tableName string, filter *types.Expression) []type
 		}
 		decoder := gob.NewDecoder(bytes.NewReader(value))
 		if err := decoder.Decode(&row); err != nil {
-			util.Error("decode row error")
+			return nil, util.Error("#ScanTable decode row error")
 		}
 		if filter != nil {
 			colNames := make([]string, 0)
 			for _, column := range table.Columns {
 				colNames = append(colNames, column.Name)
 			}
-			expr := types.EvaluateExpr(filter, colNames, row, colNames, row)
+			expr, err := types.EvaluateExpr(filter, colNames, row, colNames, row)
+			if err != nil {
+				return nil, err
+			}
 			switch expr.(type) {
 			case *types.ConstNull:
 			case *types.ConstBool:
@@ -103,68 +122,91 @@ func (s *KVService) ScanTable(tableName string, filter *types.Expression) []type
 				} else {
 				}
 			default:
-				util.Error("[ScanTable] FilterExecutor.Execute Unexpected expression")
+				return nil, util.Error("#ScanTable filter.EvaluateExpr Unexpected expression")
 			}
 		} else {
 			rows = append(rows, row)
 		}
 	}
-	return rows
+	return rows, nil
 }
-func (s *KVService) CreateTable(table *types.Table) {
-	if getTable := s.GetTable(table.Name); getTable != nil {
-		util.Error("table already exists")
-		return
+func (s *KVService) CreateTable(table *types.Table) error {
+	getTable, err := s.GetTable(table.Name)
+	if err != nil {
+		return err
+	}
+	if getTable != nil {
+		return util.Error("#CreateTable table already exists")
 	}
 	table.Validate()
 
 	var buffer bytes.Buffer
 	encoder := gob.NewEncoder(&buffer)
 	if err := encoder.Encode(table); err != nil {
-		util.Error("encode table error")
+		return util.Error("#CreateTable encode table error")
 	}
 	// tableNameKey: Table_test
 	tableNameKey := GetTableNameKey(table.Name)
-	s.txn.Set(tableNameKey, buffer.Bytes())
+	return s.txn.Set(tableNameKey, buffer.Bytes())
 }
-func (s *KVService) DropTable(tableName string) {
-	table := s.MustGetTable(tableName)
-	rows := s.ScanTable(tableName, nil)
+func (s *KVService) DropTable(tableName string) error {
+	table, err := s.MustGetTable(tableName)
+	if err != nil {
+		return err
+	}
+	rows, err := s.ScanTable(tableName, nil)
+	if err != nil {
+		return err
+	}
 	for _, row := range rows {
 		primaryKeyOfValue := table.GetPrimaryKeyOfValue(row)
-		s.DeleteRow(table, primaryKeyOfValue)
+		err = s.DeleteRow(table, primaryKeyOfValue)
+		if err != nil {
+			return err
+		}
 	}
 	tableNameKey := GetTableNameKey(tableName)
-	s.txn.Delete(tableNameKey)
+	return s.txn.Delete(tableNameKey)
 }
-func (s *KVService) GetTable(tableName string) *types.Table {
+func (s *KVService) GetTable(tableName string) (*types.Table, error) {
 	// tableNameKey : Table_test
 	tableNameKey := GetTableNameKey(tableName)
 	tableBytes := s.txn.Get(tableNameKey)
 	if tableBytes == nil {
-		return nil
+		return nil, nil
 	}
 	var buffer bytes.Buffer
 	buffer.Write(tableBytes)
 	decoder := gob.NewDecoder(&buffer)
 	var table types.Table
 	if err := decoder.Decode(&table); err != nil {
-		util.Error("decode table error")
+		return nil, err
 	}
-	return &table
+	return &table, nil
 }
-func (s *KVService) MustGetTable(tableName string) *types.Table {
-	table := s.GetTable(tableName)
+func (s *KVService) MustGetTable(tableName string) (*types.Table, error) {
+	table, err := s.GetTable(tableName)
 	if table == nil {
-		util.Error("table not exists")
+		if err != nil {
+			// 解码错误
+			return nil, err
+		} else {
+			return nil, util.Error("#MustGetTable table not exists")
+		}
 	}
-	return table
+	return table, nil
 }
-func (s *KVService) UpdateRow(table *types.Table, primaryId types.Value, row []types.Value) {
+func (s *KVService) UpdateRow(table *types.Table, primaryId types.Value, row []types.Value) error {
 	newPk := table.GetPrimaryKeyOfValue(row)
 	if primaryId != newPk {
-		s.DeleteRow(table, primaryId)
-		s.CreateRow(table.Name, row)
+		err := s.DeleteRow(table, primaryId)
+		if err != nil {
+			return err
+		}
+		err = s.CreateRow(table.Name, row)
+		if err != nil {
+			return err
+		}
 	}
 	// 没有更新主键的情况:
 	// 查询当前表的所有索引列; 判断是否更新了索引列;
@@ -178,28 +220,43 @@ func (s *KVService) UpdateRow(table *types.Table, primaryId types.Value, row []t
 	// update user set index="kk" where id=10;
 
 	for i, v := range indexCol {
-		oldRow := s.ReadById(table.Name, primaryId)
+		oldRow, err := s.ReadById(table.Name, primaryId)
+		if err != nil {
+			return err
+		}
 		if oldRow != nil {
 			if oldRow[i] == row[i] {
 				continue
 			}
 		}
-		oldIndex := s.LoadIndex(table.Name, v.Name, oldRow[i])
+		oldIndex, err := s.LoadIndex(table.Name, v.Name, oldRow[i])
+		if err != nil {
+			return err
+		}
 		oldIndex = types.Remove(oldIndex, oldRow[i])
-		s.SaveIndex(table.Name, v.Name, oldRow[i], oldIndex)
-		newIndex := s.LoadIndex(table.Name, v.Name, row[i])
+		err = s.SaveIndex(table.Name, v.Name, oldRow[i], oldIndex)
+		if err != nil {
+			return err
+		}
+		newIndex, err := s.LoadIndex(table.Name, v.Name, row[i])
+		if err != nil {
+			return err
+		}
 		newIndex = append(newIndex, newPk)
-		s.SaveIndex(table.Name, v.Name, row[i], newIndex)
+		err = s.SaveIndex(table.Name, v.Name, row[i], newIndex)
+		if err != nil {
+			return err
+		}
 	}
 	rowKey := GetRowKey(table.Name, newPk)
 	var buffer bytes.Buffer
 	encoder := gob.NewEncoder(&buffer)
 	if err := encoder.Encode(row); err != nil {
-		util.Error("encode row error")
+		return util.Error("#UpdateRow encode row error")
 	}
-	s.txn.Set(rowKey, buffer.Bytes())
+	return s.txn.Set(rowKey, buffer.Bytes())
 }
-func (s *KVService) DeleteRow(table *types.Table, primaryIdDelete types.Value) {
+func (s *KVService) DeleteRow(table *types.Table, primaryIdDelete types.Value) error {
 	indexCols := make(map[int]types.ColumnV)
 	for i, column := range table.Columns {
 		if column.IsIndex {
@@ -208,17 +265,26 @@ func (s *KVService) DeleteRow(table *types.Table, primaryIdDelete types.Value) {
 	}
 	// 每一个索引都关联着 主键; 所以当删除主键时,也需要将索引关系剔除;
 	for i, indexCol := range indexCols {
-		row := s.ReadById(table.Name, primaryIdDelete)
+		row, err := s.ReadById(table.Name, primaryIdDelete)
+		if err != nil {
+			return err
+		}
 		if row != nil {
-			index := s.LoadIndex(table.Name, indexCol.Name, row[i])
+			index, err := s.LoadIndex(table.Name, indexCol.Name, row[i])
+			if err != nil {
+				return err
+			}
 			index = types.Remove(index, primaryIdDelete)
-			s.SaveIndex(table.Name, indexCol.Name, row[i], index)
+			err = s.SaveIndex(table.Name, indexCol.Name, row[i], index)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	rowKey := GetRowKey(table.Name, primaryIdDelete)
-	s.txn.Delete(rowKey)
+	return s.txn.Delete(rowKey)
 }
-func (s *KVService) LoadIndex(tableName string, colName string, colVal types.Value) []types.Value {
+func (s *KVService) LoadIndex(tableName string, colName string, colVal types.Value) ([]types.Value, error) {
 	indexKey := GetIndexKey(tableName, colName, colVal)
 	values := s.txn.Get(indexKey)
 	var index []types.Value
@@ -227,13 +293,13 @@ func (s *KVService) LoadIndex(tableName string, colName string, colVal types.Val
 		buffer.Write(values)
 		decoder := gob.NewDecoder(&buffer)
 		if err := decoder.Decode(&index); err != nil {
-			util.Error("decode index error")
+			return nil, util.Error("#LoadIndex decode index error")
 		}
-		return index
+		return index, nil
 	}
-	return nil
+	return nil, nil
 }
-func (s *KVService) ReadById(tableName string, primaryId types.Value) types.Row {
+func (s *KVService) ReadById(tableName string, primaryId types.Value) (types.Row, error) {
 	rowKey := GetRowKey(tableName, primaryId)
 	values := s.txn.Get(rowKey)
 	if values != nil {
@@ -242,23 +308,23 @@ func (s *KVService) ReadById(tableName string, primaryId types.Value) types.Row 
 		decoder := gob.NewDecoder(&buffer)
 		var row types.Row
 		if err := decoder.Decode(&row); err != nil {
-			util.Error("decode row error")
+			return nil, util.Error("#ReadById decode row error")
 		}
-		return row
+		return row, nil
 	}
-	return nil
+	return nil, nil
 }
-func (s *KVService) SaveIndex(tableName string, colName string, colVal types.Value, indexSet []types.Value) {
+func (s *KVService) SaveIndex(tableName string, colName string, colVal types.Value, indexSet []types.Value) error {
 	indexKey := GetIndexKey(tableName, colName, colVal)
 	if len(indexSet) == 0 {
-		s.txn.Delete(indexKey)
+		return s.txn.Delete(indexKey)
 	} else {
 		var buffer bytes.Buffer
 		encoder := gob.NewEncoder(&buffer)
 		if err := encoder.Encode(indexSet); err != nil {
-			util.Error("encode index error")
+			return util.Error("#SaveIndex encode index error")
 		}
-		s.txn.Set(indexKey, buffer.Bytes())
+		return s.txn.Set(indexKey, buffer.Bytes())
 	}
 }
 func (s *KVService) GetTableNames() []string {

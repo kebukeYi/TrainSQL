@@ -20,13 +20,19 @@ func NewScanTableExecutor(tableName string, filter *types.Expression) *ScanTable
 }
 func (scan *ScanTableExecutor) Execute(s Service) types.ResultSet {
 	//fmt.Printf("\nScan table %s:\n", scan.TableName)
-	table := s.MustGetTable(scan.TableName)
+	table, err := s.MustGetTable(scan.TableName)
+	if err != nil {
+		return &types.ErrorResult{ErrorMessage: fmt.Sprintf("#ScanTableExecutor.Execute error: %s", err.Error())}
+	}
 	columns := table.Columns
 	var columnNames []string
 	for _, column := range columns {
 		columnNames = append(columnNames, column.Name)
 	}
-	rows := s.ScanTable(scan.TableName, scan.Filter)
+	rows, err := s.ScanTable(scan.TableName, scan.Filter)
+	if err != nil {
+		return &types.ErrorResult{ErrorMessage: fmt.Sprintf("#ScanTableExecutor.Execute error: %s", err.Error())}
+	}
 	return &types.ScanTableResult{
 		Columns: columnNames,
 		Rows:    rows,
@@ -47,12 +53,18 @@ func NewIndexScanExecutor(tableName string, filed string, value types.Value) *In
 	}
 }
 func (scan *IndexScanTableExecutor) Execute(s Service) types.ResultSet {
-	table := s.MustGetTable(scan.TableName)
+	table, err := s.MustGetTable(scan.TableName)
+	if err != nil {
+		return &types.ErrorResult{ErrorMessage: fmt.Sprintf("#IndexScanTableExecutor.Execute error: %s", err.Error())}
+	}
 	columnNames := make([]string, 0)
 	for _, column := range table.Columns {
 		columnNames = append(columnNames, column.Name)
 	}
-	loadIndex := s.LoadIndex(table.Name, scan.Filed, scan.Value)
+	loadIndex, err := s.LoadIndex(table.Name, scan.Filed, scan.Value)
+	if err != nil {
+		return &types.ErrorResult{ErrorMessage: fmt.Sprintf("#IndexScanTableExecutor.Execute error: %s", err.Error())}
+	}
 	sort.Slice(loadIndex, func(i, j int) bool {
 		if ok, cmp := loadIndex[i].PartialCmp(loadIndex[j]); ok {
 			// true:  表示索引 i 的元素应该排在索引 j 的元素之前
@@ -64,8 +76,10 @@ func (scan *IndexScanTableExecutor) Execute(s Service) types.ResultSet {
 	})
 	rows := make([]types.Row, 0)
 	for _, index := range loadIndex {
-		if row := s.ReadById(scan.TableName, index); row != nil {
+		if row, err := s.ReadById(scan.TableName, index); row != nil {
 			rows = append(rows, row)
+		} else if err != nil {
+			return &types.ErrorResult{ErrorMessage: fmt.Sprintf("#IndexScanTableExecutor.Execute error: %s", err.Error())}
 		}
 	}
 	return &types.ScanTableResult{
@@ -87,7 +101,10 @@ func NewPrimaryKeyScanExecutor(tableName string, value types.Value) *PrimaryKeyS
 }
 func (scan *PrimaryKeyScanExecutor) Execute(s Service) types.ResultSet {
 	// 扫描过程: 针对 主键id 进行扫描过滤;
-	table := s.MustGetTable(scan.TableName)
+	table, err := s.MustGetTable(scan.TableName)
+	if err != nil {
+		return &types.ErrorResult{ErrorMessage: fmt.Sprintf("#PrimaryKeyScanExecutor.Execute error: %s", err.Error())}
+	}
 	columnNames := make([]string, 0)
 	for _, column := range table.Columns {
 		columnNames = append(columnNames, column.Name)
@@ -99,8 +116,10 @@ func (scan *PrimaryKeyScanExecutor) Execute(s Service) types.ResultSet {
 		}
 	}
 	rows := make([]types.Row, 0)
-	if row := s.ReadById(scan.TableName, value); row != nil {
+	if row, err := s.ReadById(scan.TableName, value); row != nil {
 		rows = append(rows, row)
+	} else if err != nil {
+		return &types.ErrorResult{ErrorMessage: fmt.Sprintf("#PrimaryKeyScanExecutor.Execute error: %s", err.Error())}
 	}
 	return &types.ScanTableResult{
 		Columns: columnNames,
@@ -125,7 +144,10 @@ func (filter *FilterExecutor) Execute(s Service) types.ResultSet {
 	if set, ok := resultSet.(*types.ScanTableResult); ok {
 		newRow := make([]types.Row, 0)
 		for _, row := range set.Rows {
-			expr := types.EvaluateExpr(filter.Predicate, set.Columns, row, set.Columns, row)
+			expr, err := types.EvaluateExpr(filter.Predicate, set.Columns, row, set.Columns, row)
+			if err != nil {
+				return &types.ErrorResult{ErrorMessage: fmt.Sprintf("#FilterExecutor.Execute error: %s", err.Error())}
+			}
 			switch expr.(type) {
 			case *types.ConstNull:
 			case *types.ConstBool:
@@ -133,7 +155,7 @@ func (filter *FilterExecutor) Execute(s Service) types.ResultSet {
 					newRow = append(newRow, row)
 				}
 			default:
-				util.Error("FilterExecutor.Execute Unexpected expression")
+				return &types.ErrorResult{ErrorMessage: "#FilterExecutor Execute Unexpected expression"}
 			}
 		}
 		return &types.ScanTableResult{
@@ -141,8 +163,7 @@ func (filter *FilterExecutor) Execute(s Service) types.ResultSet {
 			Rows:    newRow,
 		}
 	}
-	util.Error("FilterExecutor.Execute error resultSet type")
-	return nil
+	return &types.ErrorResult{ErrorMessage: "#FilterExecutor.Execute error resultSet type"}
 }
 
 type ProjectExecutor struct {

@@ -53,7 +53,7 @@ func (e *Expression) ToString() string {
 	return ""
 }
 
-func EvaluateExpr(expr *Expression, lcols []string, lrows []Value, rcols []string, rrows []Value) Value {
+func EvaluateExpr(expr *Expression, lcols []string, lrows []Value, rcols []string, rrows []Value) (Value, error) {
 	// 假如字段类型不为空, 那就默认获取左表字段值;
 	// note:仅仅解析第一对参数值, 所以以后传参只传第一对即;
 	if expr.Field != "" {
@@ -64,14 +64,14 @@ func EvaluateExpr(expr *Expression, lcols []string, lrows []Value, rcols []strin
 			}
 		}
 		if lpos == -1 {
-			util.Error("#EvaluateExpr: can not find join field in left")
+			return nil, util.Error("#EvaluateExpr: can not find join field in left")
 		}
-		return lrows[lpos]
+		return lrows[lpos], nil
 	}
 
 	// 过滤类型是 常量值, 直接返回即可;
 	if expr.ConstVal != nil {
-		return expr.ConstVal
+		return expr.ConstVal, nil
 	}
 
 	// 左列值 和 右列值进行比较;
@@ -80,59 +80,77 @@ func EvaluateExpr(expr *Expression, lcols []string, lrows []Value, rcols []strin
 		case *OperationEqual:
 			equal := expr.OperationVal.(*OperationEqual)
 			// 传入左列表达式, 左列值;
-			lv := EvaluateExpr(equal.Left, lcols, lrows, rcols, rrows)
+			lv, err := EvaluateExpr(equal.Left, lcols, lrows, rcols, rrows)
+			if err != nil {
+				return nil, err
+			}
 			// 传入右列表达式, 右列值;
-			rv := EvaluateExpr(equal.Right, rcols, rrows, lcols, lrows)
+			rv, err := EvaluateExpr(equal.Right, rcols, rrows, lcols, lrows)
+			if err != nil {
+				return nil, err
+			}
 			// 进行值的具体比较;
 			return OperationCompareValue(lv, rv, expr.OperationVal)
 		case *OperationGreaterThan:
 			greaterThan := expr.OperationVal.(*OperationGreaterThan)
-			lv := EvaluateExpr(greaterThan.Left, lcols, lrows, rcols, rrows)
-			rv := EvaluateExpr(greaterThan.Right, rcols, rrows, lcols, lrows)
+			lv, err := EvaluateExpr(greaterThan.Left, lcols, lrows, rcols, rrows)
+			if err != nil {
+				return nil, err
+			}
+			rv, err := EvaluateExpr(greaterThan.Right, rcols, rrows, lcols, lrows)
+			if err != nil {
+				return nil, err
+			}
 			return OperationCompareValue(lv, rv, expr.OperationVal)
 		case *OperationLessThan:
 			lessThan := expr.OperationVal.(*OperationLessThan)
-			lv := EvaluateExpr(lessThan.Left, lcols, lrows, rcols, rrows)
-			rv := EvaluateExpr(lessThan.Right, rcols, rrows, lcols, lrows)
+			lv, err := EvaluateExpr(lessThan.Left, lcols, lrows, rcols, rrows)
+			if err != nil {
+				return nil, err
+			}
+			rv, err := EvaluateExpr(lessThan.Right, rcols, rrows, lcols, lrows)
+			if err != nil {
+				return nil, err
+			}
 			return OperationCompareValue(lv, rv, expr.OperationVal)
 		}
+		return nil, util.Error("[EvaluateExpr] not support operation")
 	}
-	util.Error("[EvaluateExpr] not support operation")
-	return nil
+	return nil, nil
 }
 
-func OperationCompareValue(lv, rv Value, operation Operation) Value {
+func OperationCompareValue(lv, rv Value, operation Operation) (Value, error) {
 	switch operation.(type) {
 	case *OperationEqual:
 		// lv 小返回-1, lv大返回1, 相等返回0; 不能比较的返回错误;
 		if allow, compare := lv.PartialCmp(rv); allow {
 			if compare == 0 {
-				return &ConstBool{Value: true}
+				return &ConstBool{Value: true}, nil
 			}
 		} else {
-			util.Error("[OperationCompareValue]OperationEqual can not compare value")
+			return nil, util.Error("[OperationCompareValue]OperationEqual can not compare value")
 		}
-		return &ConstBool{Value: false}
+		return &ConstBool{Value: false}, nil
 	case *OperationGreaterThan:
 		if allow, compare := lv.PartialCmp(rv); allow {
 			if compare == 1 {
-				return &ConstBool{Value: true}
+				return &ConstBool{Value: true}, nil
 			}
 		} else {
-			util.Error("[OperationCompareValue]OperationGreaterThan can not compare value")
+			return nil, util.Error("[OperationCompareValue]OperationGreaterThan can not compare value")
 		}
-		return &ConstBool{Value: false}
+		return &ConstBool{Value: false}, nil
 	case *OperationLessThan:
 		if allow, compare := lv.PartialCmp(rv); allow {
 			if compare == -1 {
-				return &ConstBool{Value: true}
+				return &ConstBool{Value: true}, nil
 			}
 		} else {
-			util.Error("[OperationCompareValue]OperationLessThan can not compare value")
+			return nil, util.Error("[OperationCompareValue]OperationLessThan can not compare value")
 		}
-		return &ConstBool{Value: false}
+		return &ConstBool{Value: false}, nil
 	}
-	return nil
+	return nil, nil
 }
 
 func NewExpression(con Const) *Expression {

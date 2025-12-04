@@ -332,6 +332,16 @@ func testGroupByOrderBy(t *testing.T, session *Session) {
 	fmt.Println(toString)
 }
 
+func testExplain(t *testing.T, session *Session) {
+	resultSet := session.Execute("explain select count(a) as total, min(a), max(b),sum(c),avg(c) from test group by c ;")
+	fmt.Println(resultSet.ToString())
+	resultSet = session.Execute("explain insert into t3 values (70, 87, 82, 9.52);")
+	fmt.Println(resultSet.ToString())
+	resultSet = session.Execute("explain delete from t3 where a = 70;")
+	fmt.Println(resultSet.ToString())
+	resultSet = session.Execute("explain update t3 set a = 70 where a = 1;")
+	fmt.Println(resultSet.ToString())
+}
 func testShowTableNames(t *testing.T, session *Session) {
 	set := session.Execute("begin;")
 	fmt.Println(set.ToString())
@@ -355,6 +365,9 @@ func testShowAllTableRows(t *testing.T, session *Session) {
 	showTableNames := session.ShowTableNames()
 	tables := strings.Split(showTableNames, ",")
 	for _, tableName := range tables {
+		if tableName == "" {
+			continue
+		}
 		fmt.Printf("\nScan table %s:\n", tableName)
 		sql := fmt.Sprintf("select * from %s;", tableName)
 		resultSet := session.Execute(sql)
@@ -383,6 +396,8 @@ func TestMemoryStorage(t *testing.T) {
 
 	// testGroupBy(t, session)
 	// testGroupByOrderBy(t, session)
+
+	testExplain(t, session)
 
 	testShowAllTableRows(t, session)
 	// testShowTableNames(t, session)

@@ -5,11 +5,18 @@ import "github.com/kebukeYi/TrainSQL/sql/types"
 // 计算数学表达式
 // 5 + 2 + 1
 // 5 + 2 * 1
-func (p *Parser) computeMathOperator(minPrev int32) *types.Expression {
-	left := p.parseExpression()
+func (p *Parser) computeMathOperator(minPrev int32) (*types.Expression, error) {
+	var left *types.Expression
+	var right *types.Expression
+	var next *Token
+	var err error
+	left, err = p.parseExpression()
+	if err != nil {
+		return nil, err
+	}
 	for {
 		// 当前 Token
-		token := p.peek()
+		token, _ := p.peek()
 		if token == nil {
 			break
 		}
@@ -18,13 +25,19 @@ func (p *Parser) computeMathOperator(minPrev int32) *types.Expression {
 			break
 		}
 		nextPrecedence := token.precedence() + 1
-		if next := p.next(); next == nil {
-			return nil
+		if next, err = p.next(); next == nil {
+			return nil, err
 		}
 		// 递归计算右边的表达式
-		right := p.computeMathOperator(nextPrecedence)
+		right, err = p.computeMathOperator(nextPrecedence)
+		if err != nil {
+			return nil, err
+		}
 		// 计算 左右两方值
-		left = token.computeExpr(left, right)
+		left, err = token.computeExpr(left, right)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return left
+	return left, nil
 }
