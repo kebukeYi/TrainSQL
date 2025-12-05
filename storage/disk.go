@@ -1,14 +1,14 @@
 package storage
 
 import (
-	"github.com/kebukeYi/TrainSQL/sql/util"
 	"github.com/rosedblabs/rosedb/v2"
+	"strings"
 	"sync"
 )
 
 type DiskStorage struct {
 	lock sync.RWMutex
-	// bitCast 模型 kv 数据库;
+	// Bitcast 模型 kv 数据库;
 	db *rosedb.DB
 }
 
@@ -38,9 +38,19 @@ func (disk *DiskStorage) Scan(bounds *RangeBounds) []*ResultPair {
 }
 func (disk *DiskStorage) ScanPrefix(keyPrefix []byte, needValue bool) []*ResultPair {
 	var result []*ResultPair
-	disk.db.AscendKeys(keyPrefix, needValue, func(k []byte, v []byte) (bool, error) {
-		// 数据库遍历时, 只有满足keyPrefix前缀的key会进入到这里;随后进行保存;
-		result = append(result, &ResultPair{Key: k, Value: v})
+	disk.db.Ascend(func(Key []byte, Value []byte) (bool, error) {
+		if strings.HasPrefix(string(Key), string(keyPrefix)) {
+			if needValue {
+				result = append(result, &ResultPair{
+					Key:   Key,
+					Value: Value,
+				})
+			} else {
+				result = append(result, &ResultPair{
+					Key: Key,
+				})
+			}
+		}
 		return true, nil
 	})
 	return result
@@ -61,10 +71,4 @@ func (disk *DiskStorage) Close() error {
 	}
 	disk.db = nil
 	return nil
-}
-func (disk *DiskStorage) Sync() {
-	err := disk.db.Sync()
-	if err != nil {
-		util.Error("[DiskStorage] sync error")
-	}
 }

@@ -19,7 +19,6 @@ func NewScanTableExecutor(tableName string, filter *types.Expression) *ScanTable
 	}
 }
 func (scan *ScanTableExecutor) Execute(s Service) types.ResultSet {
-	//fmt.Printf("\nScan table %s:\n", scan.TableName)
 	table, err := s.MustGetTable(scan.TableName)
 	if err != nil {
 		return &types.ErrorResult{ErrorMessage: fmt.Sprintf("#ScanTableExecutor.Execute error: %s", err.Error())}
@@ -245,7 +244,7 @@ func (order *OrderExecutor) Execute(s Service) types.ResultSet {
 				}
 			}
 			if len(orderColIndex) == 0 {
-				util.Error("OrderExecutor.Execute error column name")
+				return &types.ErrorResult{ErrorMessage: "#OrderExecutor.Execute error column name"}
 			}
 		}
 		// 多个行(容器)参与比较;
@@ -278,8 +277,7 @@ func (order *OrderExecutor) Execute(s Service) types.ResultSet {
 			Rows:    set.Rows,
 		}
 	}
-	util.Error("OrderExecutor.Execute error resultSet type")
-	return nil
+	return &types.ErrorResult{ErrorMessage: "#OrderExecutor.Execute error resultSet type"}
 }
 
 type LimitExecutor struct {
@@ -300,24 +298,15 @@ func (limit *LimitExecutor) Execute(s Service) types.ResultSet {
 		if limit.Limit > len(set.Rows) {
 			limit.Limit = len(set.Rows)
 		}
-		fmt.Println("---------------limit start----------------------")
-
-		for _, row := range set.Rows {
-			fmt.Println(types.RowsToString(row))
-		}
-		fmt.Println("---------------limit ing----------------------")
 		rows := set.Rows[:limit.Limit]
-		for _, row := range rows {
-			fmt.Println(types.RowsToString(row))
-		}
-		fmt.Println("---------------limit over----------------------")
 		return &types.ScanTableResult{
 			Columns: set.Columns,
 			Rows:    rows,
 		}
 	}
-	util.Error("LimitExecutor.Execute error resultSet type")
-	return nil
+	return &types.ErrorResult{
+		ErrorMessage: "#LimitExecutor.Execute error resultSet type",
+	}
 }
 
 type OffsetExecutor struct {
@@ -338,22 +327,12 @@ func (offset *OffsetExecutor) Execute(s Service) types.ResultSet {
 		if offset.Offset > len(set.Rows) {
 			offset.Offset = len(set.Rows) - 1
 		}
-		fmt.Println("---------------offset start----------------------")
-		for _, row := range set.Rows {
-			fmt.Println(types.RowsToString(row))
-		}
-		fmt.Println("---------------offset ing----------------------")
-		rows := set.Rows[offset.Offset:]
-		for _, row := range rows {
-			fmt.Println(types.RowsToString(row))
-		}
-		fmt.Println("---------------offset over----------------------")
-
 		return &types.ScanTableResult{
 			Columns: set.Columns,
 			Rows:    set.Rows[offset.Offset:],
 		}
 	}
-	util.Error("OffsetExecutor.Execute error resultSet type")
-	return nil
+	return &types.ErrorResult{
+		ErrorMessage: "#OffsetExecutor.Execute error resultSet type",
+	}
 }

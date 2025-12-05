@@ -40,6 +40,7 @@ func (n *NestedLoopJoinExecutor) Execute(s Service) types.ResultSet {
 				for _, rrow := range right.Rows {
 					// 判断当前两行是否满足 on 条件;
 					if n.Predicate != nil {
+						// 实时取出 两个表的列的值, 进行对比;
 						value, err := types.EvaluateExpr(n.Predicate, left.Columns, lrow, right.Columns, rrow)
 						if err != nil {
 							return &types.ErrorResult{ErrorMessage: err.Error()}
@@ -79,8 +80,7 @@ func (n *NestedLoopJoinExecutor) Execute(s Service) types.ResultSet {
 			Rows:    newRows,
 		}
 	}
-	util.Error("NestedLoopJoinExecutor.Execute Unexpected result set")
-	return nil
+	return &types.ErrorResult{ErrorMessage: util.Error("NestedLoopJoinExecutor.Execute Unexpected result set").Error()}
 }
 
 type HashJoinExecutor struct {
@@ -105,20 +105,24 @@ func (h *HashJoinExecutor) Execute(s Service) types.ResultSet {
 		lrows := left.Rows
 		newRows := make([]types.Row, 0)
 		var newCols []string
-		newCols = append(newCols, leftSet.(*types.ScanTableResult).Columns...)
+		//  默认取左表全字段;
+		newCols = append(newCols, lcols...)
 		rightSet := h.Right.Execute(s)
 		if right, ok := rightSet.(*types.ScanTableResult); ok {
 			rrols := right.Columns
 			rrows := right.Rows
 			// 左边列+右边列; 最后再统一进行取舍;
-			newCols = append(newCols, rightSet.(*types.ScanTableResult).Columns...)
+			newCols = append(newCols, rrols...)
 			lfield := ""
 			rfield := ""
+			// 存在 on 条件
 			if h.Predicate != nil {
 				// 解析 HashJoin 条件;
 				hashJoinFilterVal := parseJoinFilter(h.Predicate)
 				if hashJoinFilterVal == nil {
-					util.Error("HashJoinExecutor: can not find join field")
+					return &types.ErrorResult{
+						ErrorMessage: util.Error("HashJoinExecutor: can not find join field").Error(),
+					}
 				}
 				lfield = hashJoinFilterVal.leftVal
 				rfield = hashJoinFilterVal.rightVal
@@ -128,10 +132,13 @@ func (h *HashJoinExecutor) Execute(s Service) types.ResultSet {
 			for i, rol := range lcols {
 				if rol == lfield {
 					lpos = i
+					break
 				}
 			}
 			if lpos == -1 {
-				util.Error("HashJoinExecutor: can not find join field in left")
+				return &types.ErrorResult{
+					ErrorMessage: util.Error("HashJoinExecutor: can not find join field[%s] in left", lfield).Error(),
+				}
 			}
 			rpos := -1
 			for i, rol := range rrols {
@@ -140,24 +147,28 @@ func (h *HashJoinExecutor) Execute(s Service) types.ResultSet {
 				}
 			}
 			if rpos == -1 {
-				util.Error("HashJoinExecutor: can not find join field in right")
+				return &types.ErrorResult{
+					ErrorMessage: util.Error("HashJoinExecutor: can not find join field[%s] in right", rfield).Error(),
+				}
 			}
 
-			// 构建哈希表
-			table := make(map[types.Value][]types.Row)
+			// 右表构建哈希映射, 方便左表进行查询;
+			table := make(map[uint32][]types.Row)
 			for _, row := range rrows {
-				table[row[rpos]] = append(table[row[rpos]], row)
+				rightRowHash := row[rpos].Hash()
+				table[rightRowHash] = append(table[rightRowHash], row)
 			}
 
 			// 扫描左边获取记录;
 			for _, lrow := range lrows {
-				if rows, ok := table[lrow[lpos]]; ok {
+				leftRowHash := lrow[lpos].Hash()
+				if rows, ok := table[leftRowHash]; ok {
 					for _, row := range rows {
 						lrow = append(lrow, row...)
 						newRows = append(newRows, lrow)
 					}
 				} else {
-					// 没有找到匹配的, 但是需要补全null列;
+					// 左表的当前行, 没有在右表中找到匹配的, 那么进行判断,右表的列 是否需要补全null列;
 					if h.Outer {
 						row := make(types.Row, 0)
 						for i := 0; i < len(right.Rows[0]); i++ {
@@ -174,9 +185,21 @@ func (h *HashJoinExecutor) Execute(s Service) types.ResultSet {
 				Rows:    newRows,
 			}
 		}
+		if set, ok := rightSet.(*types.ErrorResult); ok {
+			return set
+		} else {
+			return &types.ErrorResult{
+				ErrorMessage: util.Error("HashJoinExecutor.Execute Unexpected right result set").Error(),
+			}
+		}
 	}
-	util.Error("HashJoinExecutor.Execute Unexpected result set")
-	return nil
+	if set, ok := leftSet.(*types.ErrorResult); ok {
+		return set
+	} else {
+		return &types.ErrorResult{
+			ErrorMessage: util.Error("HashJoinExecutor.Execute Unexpected left result set").Error(),
+		}
+	}
 }
 
 type HashJoinFilterVal struct {
@@ -193,10 +216,11 @@ func parseJoinFilter(expression *types.Expression) *HashJoinFilterVal {
 			return hashJoinFilterVal
 		} else if expression.OperationVal != nil {
 			switch expression.OperationVal.(type) {
+			// 目前只有 id = order_id 的情况;
 			case *types.OperationEqual:
 				equal := expression.OperationVal.(*types.OperationEqual)
 				hashJoinFilterVal.leftVal = parseJoinFilter(equal.Left).leftVal
-				hashJoinFilterVal.rightVal = parseJoinFilter(equal.Right).rightVal
+				hashJoinFilterVal.rightVal = parseJoinFilter(equal.Right).leftVal
 				return hashJoinFilterVal
 			default:
 				return nil

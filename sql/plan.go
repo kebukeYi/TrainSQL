@@ -93,6 +93,7 @@ func (p *Plan) BuildNode() (Node, error) {
 				}
 			}
 		}
+
 		if selectData.Having != nil {
 			node = &FilterNode{
 				Source:    node,
@@ -170,39 +171,45 @@ func (p *Plan) BuildNode() (Node, error) {
 func (p *Plan) BuildFromItem(item FromItem, filter *types.Expression) (Node, error) {
 	switch item.(type) {
 	case *TableItem:
+		// from user;  构建 全表扫描, 主键扫描, 索引扫描 节点;
 		return p.buildScan(item.(*TableItem).TableName, filter)
 
+		// from user right join order ...
+		// 扫描
 	case *JoinItem:
 		joinItem := item.(*JoinItem)
 		// 如果是右连接, 则交换位置;
 		if joinItem.JoinType == RightType {
 			joinItem.Left, joinItem.Right = joinItem.Right, joinItem.Left
 		}
+		// left or right => true
 		outer := true
 		if joinItem.JoinType == CrossType || joinItem.JoinType == InnerType {
 			outer = false
 		}
-
-		left, err := p.BuildFromItem(joinItem.Left, joinItem.Predicate)
+		//
+		leftNode, err := p.BuildFromItem(joinItem.Left, joinItem.Predicate)
 		if err != nil {
 			return nil, err
 		}
-		right, err := p.BuildFromItem(joinItem.Right, joinItem.Predicate)
+		//
+		rightNode, err := p.BuildFromItem(joinItem.Right, joinItem.Predicate)
 		if err != nil {
 			return nil, err
 		}
+		// 笛卡尔积;
 		if joinItem.JoinType == CrossType {
 			return &NestedLoopJoinNode{
-				Left:      left,
-				Right:     right,
+				Left:      leftNode,
+				Right:     rightNode,
 				Predicate: joinItem.Predicate,
 				Outer:     outer,
 			}, nil
 		} else {
 			return &HashJoinNode{
-				Left:      left,
-				Right:     right,
-				Predicate: joinItem.Predicate,
+				Left:      leftNode,
+				Right:     rightNode,
+				Predicate: joinItem.Predicate, // a = b
 				Outer:     outer,
 			}, nil
 		}
@@ -259,9 +266,18 @@ func (p *Plan) BuildExecutor(node Node) Executor {
 	}
 	return nil
 }
+
 func (p *Plan) buildScan(tableName string, whereClause *types.Expression) (Node, error) {
+	//
 	scanFilter := p.parseScanFilter(whereClause)
 	if scanFilter != nil {
+		// 解析 join on id = order_id 时的特殊情况;
+		if scanFilter.field != "" && scanFilter.value == nil {
+			return &ScanNode{
+				TableName: tableName,
+				Filter:    nil,
+			}, nil
+		}
 		table, err := p.Service.MustGetTable(tableName)
 		if err != nil {
 			return nil, err
@@ -308,7 +324,7 @@ func (p *Plan) parseScanFilter(filter *types.Expression) *FilterValue {
 	if filter.Field != "" {
 		return &FilterValue{
 			field: filter.Field,
-			value: &types.ConstNull{},
+			value: nil,
 		}
 	} else if filter.ConstVal != nil {
 		return &FilterValue{
@@ -316,9 +332,12 @@ func (p *Plan) parseScanFilter(filter *types.Expression) *FilterValue {
 			value: filter.ConstVal,
 		}
 	} else if filter.OperationVal != nil {
+		// 1. where id = 1; on id = 12;  id = null;
+		// 2. on id = order_id;
 		switch filter.OperationVal.(type) {
 		case *types.OperationEqual:
 			equal := filter.OperationVal.(*types.OperationEqual)
+			// 解析左右值;
 			left := p.parseScanFilter(equal.Left)
 			right := p.parseScanFilter(equal.Right)
 			return &FilterValue{

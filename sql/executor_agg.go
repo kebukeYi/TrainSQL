@@ -10,7 +10,7 @@ import (
 
 type AggregateExecutor struct {
 	Source   Executor
-	SeqExprs []*SelectCol // 保证插入顺序列;
+	SeqExprs []*SelectCol // 保证遍历时按照插入顺序输出;
 	// Exprs    map[*types.Expression]string // <表达式, 别名>
 	GroupBy *types.Expression
 }
@@ -31,18 +31,23 @@ func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
 		newRows := make([]types.Row, 0)
 
 		// 对每个分组, 进行计算 聚集 函数;
-		calc := func(colVal types.Value, rows []types.Row) []types.Value {
+		calc := func(colVal types.Value, rows []types.Row) ([]types.Value, error) {
 			newRow := make([]types.Value, 0)
 			// 计算 表达式;
-			//
 			for _, selectCol := range agg.SeqExprs {
 				expression := selectCol.Expr
 				alias := selectCol.Alis
 				// 如果是 函数类型的;
 				if expression.Function != nil {
-					cal := BuildCal(expression.Function.FuncName)
+					cal, err := BuildCal(expression.Function.FuncName)
+					if err != nil {
+						return nil, util.Error("AggregateExecutor: not support function name : %s \n", expression.Function.FuncName)
+					}
 					// 当前列名字 + 所有列 => 对应列下标 + 所有的行 + 当前函数 => 对应的列结果;
-					val := cal.Calc(expression.Function.ColName, result.Columns, rows)
+					val, err := cal.Calc(expression.Function.ColName, result.Columns, rows)
+					if err != nil {
+						return nil, err
+					}
 					// min(a)            -> 默认列名为 min(a)
 					// min(a) as min_val -> 默认列名为 min_val
 					// 如果函数列 > 列数;
@@ -59,7 +64,7 @@ func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
 					// select c2, min(c1), max(c3) from t group by c2;
 					if agg.GroupBy != nil {
 						if agg.GroupBy.Field != expression.Field {
-							util.Error("AggregateExecutor: can not find group by column")
+							return nil, util.Error("AggregateExecutor: not support group by column")
 						}
 					}
 
@@ -72,10 +77,10 @@ func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
 					}
 					newRow = append(newRow, colVal)
 				} else {
-					util.Error("AggregateExecutor: not support expression type")
+					return nil, util.Error("AggregateExecutor: not support expression type")
 				}
 			}
-			return newRow
+			return newRow, nil
 		} // over cal
 
 		// 判断有没有 Group By
@@ -106,7 +111,7 @@ func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
 				}
 			}
 			if pos == -1 {
-				util.Error("AggregateExecutor: can not find group by column")
+				return &types.ErrorResult{ErrorMessage: util.Error("AggregateExecutor: can not find group by column").Error()}
 			}
 
 			// 针对 Group By 的列进行分组;
@@ -129,11 +134,17 @@ func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
 				// 假如没有分组, 那么每次就传入一条row;
 				// row := calc(K, v)
 				value := rows[0][pos]
-				row := calc(value, rows)
+				row, err := calc(value, rows)
+				if err != nil {
+					return &types.ErrorResult{ErrorMessage: err.Error()}
+				}
 				newRows = append(newRows, row)
 			}
 		} else {
-			row := calc(nil, result.Rows)
+			row, err := calc(nil, result.Rows)
+			if err != nil {
+				return &types.ErrorResult{ErrorMessage: err.Error()}
+			}
 			newRows = append(newRows, row)
 		}
 		return &types.ScanTableResult{
@@ -141,38 +152,35 @@ func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
 			Rows:    newRows,
 		}
 	default:
-		util.Error("AggregateExecutor: not support resultSet type")
+		return &types.ErrorResult{ErrorMessage: util.Error("AggregateExecutor: not support resultSet type").Error()}
 	}
-	util.Error("AggregateExecutor: not support resultSet type")
-	return nil
 }
 
 type Calculator interface {
-	Calc(colName string, cols []string, rows []types.Row) types.Value
+	Calc(colName string, cols []string, rows []types.Row) (types.Value, error)
 }
 
-func BuildCal(funcName string) Calculator {
+func BuildCal(funcName string) (Calculator, error) {
 	funcName = strings.ToUpper(funcName)
 	if funcName == "COUNT" {
-		return &CountCal{}
+		return &CountCal{}, nil
 	} else if funcName == "SUM" {
-		return &SumCal{}
+		return &SumCal{}, nil
 	} else if funcName == "AVG" {
-		return &AvgCal{}
+		return &AvgCal{}, nil
 	} else if funcName == "MAX" {
-		return &MaxCal{}
+		return &MaxCal{}, nil
 	} else if funcName == "MIN" {
-		return &MinCal{}
+		return &MinCal{}, nil
 	} else {
-		util.Error("AggregateExecutor.BuildCal: not support function name : %s \n", funcName)
+		return nil, util.Error("AggregateExecutor.BuildCal: not support function name : %s \n", funcName)
 	}
-	return nil
 }
 
 type CountCal struct {
 }
 
-func (c *CountCal) Calc(colName string, cols []string, rows []types.Row) types.Value {
+func (c *CountCal) Calc(colName string, cols []string, rows []types.Row) (types.Value, error) {
 	pos := -1
 	for i, col := range cols {
 		if col == colName {
@@ -181,7 +189,7 @@ func (c *CountCal) Calc(colName string, cols []string, rows []types.Row) types.V
 		}
 	}
 	if pos == -1 {
-		util.Error("AggregateExecutor.CountCal: can not find column")
+		return nil, util.Error("AggregateExecutor.CountCal: can not find column")
 	}
 	// a b      c
 	// 1 X     NULL
@@ -194,13 +202,13 @@ func (c *CountCal) Calc(colName string, cols []string, rows []types.Row) types.V
 			count++
 		}
 	}
-	return &types.ConstInt{Value: int64(count)}
+	return &types.ConstInt{Value: int64(count)}, nil
 }
 
 type SumCal struct {
 }
 
-func (s *SumCal) Calc(colName string, cols []string, rows []types.Row) types.Value {
+func (s *SumCal) Calc(colName string, cols []string, rows []types.Row) (types.Value, error) {
 	pos := -1
 	for i, col := range cols {
 		if col == colName {
@@ -209,7 +217,7 @@ func (s *SumCal) Calc(colName string, cols []string, rows []types.Row) types.Val
 		}
 	}
 	if pos == -1 {
-		util.Error("AggregateExecutor.CountCal: can not find column")
+		return nil, util.Error("AggregateExecutor.CountCal: can not find column")
 	}
 	sum := 0.0
 	for _, row := range rows {
@@ -221,36 +229,42 @@ func (s *SumCal) Calc(colName string, cols []string, rows []types.Row) types.Val
 		case *types.ConstFloat:
 			sum += value.(*types.ConstFloat).Value
 		default:
-			util.Error("AggregateExecutor.SumCal: not support value type")
+			return nil, util.Error("AggregateExecutor.SumCal: not support value type")
 		}
 	}
 	if sum == 0.0 {
-		return &types.ConstNull{}
+		return &types.ConstNull{}, nil
 	} else {
-		return &types.ConstFloat{Value: sum}
+		return &types.ConstFloat{Value: sum}, nil
 	}
 }
 
 type AvgCal struct {
 }
 
-func (a *AvgCal) Calc(colName string, cols []string, rows []types.Row) types.Value {
+func (a *AvgCal) Calc(colName string, cols []string, rows []types.Row) (types.Value, error) {
 	sumCal := SumCal{}
-	sum := sumCal.Calc(colName, cols, rows)
+	sum, err := sumCal.Calc(colName, cols, rows)
+	if err != nil {
+		return nil, err
+	}
 	countCal := CountCal{}
-	count := countCal.Calc(colName, cols, rows)
+	count, err := countCal.Calc(colName, cols, rows)
+	if err != nil {
+		return nil, err
+	}
 	if s, ok := sum.(*types.ConstFloat); ok {
 		if c, ok := count.(*types.ConstInt); ok {
-			return &types.ConstFloat{Value: s.Value / float64(c.Value)}
+			return &types.ConstFloat{Value: s.Value / float64(c.Value)}, nil
 		}
 	}
-	return &types.ConstNull{}
+	return &types.ConstNull{}, nil
 }
 
 type MaxCal struct {
 }
 
-func (m *MaxCal) Calc(colName string, cols []string, rows []types.Row) types.Value {
+func (m *MaxCal) Calc(colName string, cols []string, rows []types.Row) (types.Value, error) {
 	pos := -1
 	for i, col := range cols {
 		if col == colName {
@@ -259,7 +273,7 @@ func (m *MaxCal) Calc(colName string, cols []string, rows []types.Row) types.Val
 		}
 	}
 	if pos == -1 {
-		util.Error("AggregateExecutor.CountCal: can not find column")
+		return nil, util.Error("AggregateExecutor.CountCal: can not find column")
 	}
 	// a b      c
 	// 1 X     NULL
@@ -279,15 +293,15 @@ func (m *MaxCal) Calc(colName string, cols []string, rows []types.Row) types.Val
 			}
 			return false
 		})
-		return values[len(values)-1]
+		return values[len(values)-1], nil
 	}
-	return nullVal
+	return nullVal, nil
 }
 
 type MinCal struct {
 }
 
-func (m *MinCal) Calc(colName string, cols []string, rows []types.Row) types.Value {
+func (m *MinCal) Calc(colName string, cols []string, rows []types.Row) (types.Value, error) {
 	pos := -1
 	for i, col := range cols {
 		if col == colName {
@@ -296,7 +310,7 @@ func (m *MinCal) Calc(colName string, cols []string, rows []types.Row) types.Val
 		}
 	}
 	if pos == -1 {
-		util.Error("AggregateExecutor.CountCal: can not find column")
+		return nil, util.Error("AggregateExecutor.CountCal: can not find column")
 	}
 	// a b      c
 	// 1 X     NULL
@@ -316,7 +330,7 @@ func (m *MinCal) Calc(colName string, cols []string, rows []types.Row) types.Val
 			}
 			return false
 		})
-		return values[0]
+		return values[0], nil
 	}
-	return nullVal
+	return nullVal, nil
 }

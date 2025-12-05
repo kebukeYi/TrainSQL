@@ -283,7 +283,7 @@ func (p *Parser) parseDdlColumn() (*types.Column, error) {
 	}
 	dataTypeToken, _ := p.next()
 	if dataTypeToken == nil || dataTypeToken.Type != KEYWORD {
-		return nil, util.Error("[Parser] #parseDdlColumn: Expect data type, but got err type or nil")
+		return nil, util.Error("#parseDdlColumn: Expect data type, but got err type or nil")
 	}
 	dataType, err := p.parserDataType(dataTypeToken)
 	if err != nil {
@@ -325,7 +325,7 @@ func (p *Parser) parseDdlColumn() (*types.Column, error) {
 			case Index:
 				column.IsIndex = true
 			default:
-				return nil, util.Error("[Parser] Unexpected keyword: %s", token.ToString())
+				return nil, util.Error("#parseDdlColumn: Unexpected keyword: %s", token.ToString())
 			}
 		} else {
 			break
@@ -357,7 +357,7 @@ func (p *Parser) parserDataType(token *Token) (types.DataType, error) {
 	case Double:
 		return types.Float, nil
 	default:
-		return -1, util.Error("#parserDataType token.dataType[%s] is not support", token.ToString())
+		return -1, util.Error("#parserDataType: token.dataType[%s] is not support", token.ToString())
 	}
 }
 func (p *Parser) parseInsert() (Statement, error) {
@@ -498,8 +498,7 @@ func (p *Parser) parseSelectClause() ([]*SelectCol, error) {
 }
 func (p *Parser) parseFromClause() (FromItem, error) {
 	// From 关键字
-	var err error
-	err = p.nextExpect(&Token{Type: KEYWORD, Value: From})
+	err := p.nextExpect(&Token{Type: KEYWORD, Value: From})
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +507,7 @@ func (p *Parser) parseFromClause() (FromItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	// 是否有 Join
+	// 是否有 Join (嵌套进行);
 	for {
 		if joinType, err := p.parseFromJoinClause(); joinType != -1 {
 			left := item
@@ -519,34 +518,40 @@ func (p *Parser) parseFromClause() (FromItem, error) {
 			if right == nil {
 				return nil, nil
 			}
-			var predicate *types.Expression
+			var predicateOn *types.Expression
 			if joinType == CrossType {
-				predicate = nil
+				predicateOn = nil
 			} else {
-				err = p.nextExpect(&Token{Type: KEYWORD, Value: On})
+				// 解析 on 后面表达式;
+				if err = p.nextExpect(&Token{Type: KEYWORD, Value: On}); err != nil {
+					return nil, err
+				}
+				onLeft, err := p.parseExpression()
 				if err != nil {
 					return nil, err
 				}
-				l, _ := p.parseExpression()
-				err = p.nextExpect(&Token{Type: EQUAL, Value: Equal})
+				if err = p.nextExpect(&Token{Type: EQUAL, Value: Equal}); err != nil {
+					return nil, err
+				}
+				onRight, err := p.parseExpression()
 				if err != nil {
 					return nil, err
 				}
-				r, _ := p.parseExpression()
+				// 右连接, 左右条件, 表达式进行交换;
 				if joinType == RightType {
-					l, r = r, l
+					onLeft, onRight = onRight, onLeft
 				}
 				com := &types.OperationEqual{
-					Left:  l,
-					Right: r,
+					Left:  onLeft,
+					Right: onRight,
 				}
-				predicate = &types.Expression{OperationVal: com}
+				predicateOn = &types.Expression{OperationVal: com}
 			}
 			item = &JoinItem{
 				Left:      left,
 				Right:     right,
 				JoinType:  joinType,
-				Predicate: predicate,
+				Predicate: predicateOn,
 			}
 		} else {
 			if err != nil {
@@ -700,7 +705,7 @@ func (p *Parser) parseUpdate() (Statement, error) {
 			return nil, err
 		}
 		if _, ok := columns[colName]; ok {
-			return nil, util.Error("#parseUpdate column[%s] is already exists", colName)
+			return nil, util.Error("#parseUpdate: column[%s] is already exists", colName)
 		}
 		columns[colName] = value
 		if p.nextIfToken(&Token{Type: COMMA, Value: Comma}) == nil {

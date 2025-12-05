@@ -37,6 +37,7 @@ func testCreateTable(t *testing.T, session *Session) {
   										 b int default 12 ,
   										 d bool default true);`)
 	fmt.Println(resultSet.ToString())
+
 }
 func testInsertTable(t *testing.T, session *Session) {
 	// a |b  |c
@@ -68,6 +69,7 @@ func testInsertTable(t *testing.T, session *Session) {
 	//true |12 |true
 	resultSet = session.Execute("insert into t4 (a) values (true);")
 	fmt.Println(resultSet.ToString())
+
 }
 func testScanTable(t *testing.T, session *Session, tableName string) {
 	sql := fmt.Sprintf("select * from %s;", tableName)
@@ -98,6 +100,10 @@ func testUpdate(t *testing.T, session *Session) {
 	//44 |4   |4.4 |false |true  |v10 |v11 |v12
 	resultSet = session.Execute("update t2 set d = false where d = true;")
 	fmt.Println(resultSet.ToString()) // count = 2
+
+	//
+	resultSet = session.Execute("explain update t2 set d = false where d = true;")
+	fmt.Println(resultSet.ToString())
 }
 func testDelete(t *testing.T, session *Session) {
 	resultSet := session.Execute("insert into t2 values (12, 1, 1.1, true, true, 'v1', 'v2', 'v3');")
@@ -113,6 +119,10 @@ func testDelete(t *testing.T, session *Session) {
 	// 剩 14
 	resultSet = session.Execute("delete from t2 where d = false;")
 	fmt.Println(resultSet.ToString()) // count = 2
+
+	//
+	resultSet = session.Execute("explain delete from t2 where d = false;")
+	fmt.Println(resultSet.ToString())
 }
 func testOrderBy(t *testing.T, session *Session) {
 	//Scan table t3:
@@ -140,6 +150,9 @@ func testOrderBy(t *testing.T, session *Session) {
 	// b 列升序, a列降序;
 	resultSet := session.Execute(`select b as col2, a from t3 order by b, a desc limit 4 offset 2;`)
 	// 4行,2列;
+	fmt.Println(resultSet.ToString())
+
+	resultSet = session.Execute(`explain select b as col2, a from t3 order by b, a desc limit 4 offset 2;`)
 	fmt.Println(resultSet.ToString())
 }
 
@@ -178,6 +191,10 @@ func testAgg(t *testing.T, session *Session) {
 	resultSet = session.Execute(`select count(a) as total, max(b), min(a), sum(c), avg(c) from agg2;`)
 	// 2  null  1   null    null
 	fmt.Println(resultSet.ToString())
+
+	//
+	resultSet = session.Execute("explain select count(a) as total, max(b), min(a), sum(c), avg(c) from agg2;")
+	fmt.Println(resultSet.ToString())
 }
 func testFilter(t *testing.T, session *Session) {
 	session.Execute("create table w1 (a int primary key, b text, c float, d bool);")
@@ -209,6 +226,10 @@ func testFilter(t *testing.T, session *Session) {
 	resultSet = session.Execute("select b, sum(c) from w1 group by b having sum_c < 5 order by sum_c;")
 	// 3行, 2列;
 	fmt.Println(resultSet.ToString())
+
+	//
+	resultSet = session.Execute("explain select b, sum(c) from w1 group by b having sum_c < 5 order by sum_c;")
+	fmt.Println(resultSet.ToString())
 }
 func testPrimaryKeyScan(t *testing.T, session *Session) {
 	session.Execute("create table pk1 (a int primary key, b text index, c float index, d bool);")
@@ -228,6 +249,9 @@ func testPrimaryKeyScan(t *testing.T, session *Session) {
 	resultSet := session.Execute(sql)
 	// 1行4列;
 	fmt.Println(resultSet.ToString())
+
+	resultSet = session.Execute("explain select * from pk1 where a = 2;")
+	fmt.Println(resultSet.ToString())
 }
 func testIndexScan(t *testing.T, session *Session) {
 	session.Execute("create table i1 (a int primary key, b text index, c float index, d bool);")
@@ -244,6 +268,9 @@ func testIndexScan(t *testing.T, session *Session) {
 	//1 |a |1.1 |true
 	resultSet := session.Execute("select * from i1 where c = 1.1;")
 	// 1行,4列;
+	fmt.Println(resultSet.ToString())
+
+	resultSet = session.Execute("explain select * from i1 where c = 1.1;")
 	fmt.Println(resultSet.ToString())
 }
 func testCrossJoin(t *testing.T, session *Session) {
@@ -262,17 +289,34 @@ func testCrossJoin(t *testing.T, session *Session) {
 	resultSet := session.Execute(`select * from ac1 cross join ac2 cross join ac3;`)
 	// 27行, 3列;
 	fmt.Println(resultSet.ToString())
+
+	resultSet = session.Execute("explain select * from ac1 cross join ac2 cross join ac3;")
+	fmt.Println(resultSet.ToString())
 }
 func testInnerJoin(t *testing.T, session *Session) {
 	session.Execute("create table inj1 (a int primary key);")
 	session.Execute("create table inj2 (b int primary key);")
 	session.Execute("create table inj3 (c int primary key);")
 	session.Execute("insert into inj1 values (1), (2), (3);")
-	session.Execute("insert into inj2 values (4), (5), (6);")
-	session.Execute("insert into inj3 values (7), (8), (9);")
-	//
-	resultSet := session.Execute(`select * from inj1 right join inj2 on a = b join inj3 on a = c;`)
+	session.Execute("insert into inj2 values (3), (4), (5);")
+	session.Execute("insert into inj3 values (3), (8), (9);")
+	//b |a |c
+	//--+--+--
+	//3 |3 |3
+	//(1 rows)
+	//resultSet := session.Execute(`select * from inj1 right join inj2 on a = b join inj3 on a = c;`)
+
+	//b |a
+	//--+-----
+	//3 |3
+	//4 |null
+	//5 |null
+	//(3 rows)
+	resultSet := session.Execute(`select * from inj1 right join inj2 on a = b;`)
 	// 1行, 3列;
+	fmt.Println(resultSet.ToString())
+
+	resultSet = session.Execute("explain select * from inj1 right join inj2 on a = b;")
 	fmt.Println(resultSet.ToString())
 }
 func testHashJoin(t *testing.T, session *Session) {
@@ -280,10 +324,17 @@ func testHashJoin(t *testing.T, session *Session) {
 	session.Execute("create table haj2 (b int primary key);")
 	session.Execute("create table haj3 (c int primary key);")
 	session.Execute("insert into haj1 values (1), (2), (3);")
-	session.Execute("insert into haj2 values (4), (5), (6);")
-	session.Execute("insert into haj3 values (7), (8), (9);")
+	session.Execute("insert into haj2 values (2), (3), (4);")
+	session.Execute("insert into haj3 values (3), (1), (9);")
+	// a |b |c
+	//--+--+--
+	//3 |3 |3
+	//(1 rows)
 	resultSet := session.Execute(`select * from haj1 join haj2 on a = b join haj3 on a = c;`)
 	// 1行3列;
+	fmt.Println(resultSet.ToString())
+
+	resultSet = session.Execute("explain select * from haj1 join haj2 on a = b join haj3 on a = c;")
 	fmt.Println(resultSet.ToString())
 }
 func testGroupBy(t *testing.T, session *Session) {
@@ -307,6 +358,9 @@ func testGroupBy(t *testing.T, session *Session) {
 	resultSet := session.Execute("select count(a) as total, min(a), max(b),sum(c),avg(c) from test group by c ;")
 	toString := resultSet.ToString()
 	fmt.Println(toString)
+
+	resultSet = session.Execute("explain select count(a) as total, min(a), max(b),sum(c),avg(c) from test group by c ;")
+	fmt.Println(resultSet.ToString())
 }
 func testGroupByOrderBy(t *testing.T, session *Session) {
 	session.Execute("create table gbo1 (a int primary key, b text, c float);")
@@ -330,16 +384,13 @@ func testGroupByOrderBy(t *testing.T, session *Session) {
 	// null 4.6  4  4.6
 	// bb   5.3  5  5.55
 	fmt.Println(toString)
+
+	resultSet = session.Execute("explain select b, min(c), max(a), avg(c) from gbo1 group by b order by avg_c;")
+	fmt.Println(resultSet.ToString())
 }
 
 func testExplain(t *testing.T, session *Session) {
-	resultSet := session.Execute("explain select count(a) as total, min(a), max(b),sum(c),avg(c) from test group by c ;")
-	fmt.Println(resultSet.ToString())
-	resultSet = session.Execute("explain insert into t3 values (70, 87, 82, 9.52);")
-	fmt.Println(resultSet.ToString())
-	resultSet = session.Execute("explain delete from t3 where a = 70;")
-	fmt.Println(resultSet.ToString())
-	resultSet = session.Execute("explain update t3 set a = 70 where a = 1;")
+	resultSet := session.Execute("explain insert into t3 values (70, 87, 82, 9.52);")
 	fmt.Println(resultSet.ToString())
 }
 func testShowTableNames(t *testing.T, session *Session) {
@@ -359,7 +410,7 @@ func testShowTableNames(t *testing.T, session *Session) {
 	fmt.Println(set.ToString())
 
 	showTableNames := session.ShowTableNames()
-	fmt.Printf("showTableNames: %s ;\n", showTableNames)
+	fmt.Printf("showTableNames: %s;\n", showTableNames)
 }
 func testShowAllTableRows(t *testing.T, session *Session) {
 	showTableNames := session.ShowTableNames()
@@ -379,28 +430,36 @@ func TestMemoryStorage(t *testing.T) {
 	memoryStorage := storage.NewMemoryStorage()
 	server := NewServer(memoryStorage)
 	session := server.Session()
-	//testCreateTable(t, session)
-	//testInsertTable(t, session) // t1 t2 t3 t4,
-	//testUpdate(t, session)
-	//testDelete(t, session)
-	//testOrderBy(t, session)
+	// 第一组测试
+	testCreateTable(t, session)
+	testInsertTable(t, session) // t1 t2 t3 t4;
+	testUpdate(t, session)
+	testDelete(t, session)
+	testOrderBy(t, session)
 
-	// testAgg(t, session)
-	// testFilter(t, session)
-	// testIndexScan(t, session)
-	// testPrimaryKeyScan(t, session)
+	//第二组测试
+	testAgg(t, session)
+	testFilter(t, session)
+	testIndexScan(t, session)
+	testPrimaryKeyScan(t, session)
 
-	// testCrossJoin(t, session)
-	// testInnerJoin(t, session)
-	// testHashJoin(t, session)
+	//第三组测试
+	testCrossJoin(t, session)
+	testInnerJoin(t, session)
+	testHashJoin(t, session)
 
-	// testGroupBy(t, session)
-	// testGroupByOrderBy(t, session)
+	// 第四组测试
+	testGroupBy(t, session)
+	testGroupByOrderBy(t, session)
 
+	// 第五组测试
 	testExplain(t, session)
 
+	// 第六组测试
 	testShowAllTableRows(t, session)
-	// testShowTableNames(t, session)
+	testShowTableNames(t, session)
+
+	// TRANSACTION 136 COMMIT;
 }
 
 func TestDiskStorage(t *testing.T) {
@@ -408,7 +467,35 @@ func TestDiskStorage(t *testing.T) {
 	diskStorage := storage.NewDiskStorage(dirPath)
 	server := NewServer(diskStorage)
 	session := server.Session()
+
+	// 第一组测试
 	testCreateTable(t, session)
-	testInsertTable(t, session)
+	testInsertTable(t, session) // t1 t2 t3 t4;
+	testUpdate(t, session)
+	testDelete(t, session)
+	testOrderBy(t, session)
+
+	// 第二组测试
+	testAgg(t, session)
+	testFilter(t, session)
+	testIndexScan(t, session)
+	testPrimaryKeyScan(t, session)
+
+	// 第三组测试
+	testCrossJoin(t, session)
+	testInnerJoin(t, session)
+	testHashJoin(t, session)
+
+	// 第四组测试
+	testGroupBy(t, session)
+	testGroupByOrderBy(t, session)
+
+	// 第五组测试
+	testExplain(t, session)
+
+	// 第六组测试
+	testShowAllTableRows(t, session)
 	testShowTableNames(t, session)
+
+	// TRANSACTION 136 COMMIT;
 }

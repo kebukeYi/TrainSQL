@@ -61,10 +61,11 @@ func EvaluateExpr(expr *Expression, lcols []string, lrows []Value, rcols []strin
 		for i, lcol := range lcols {
 			if lcol == expr.Field {
 				lpos = i
+				break
 			}
 		}
 		if lpos == -1 {
-			return nil, util.Error("#EvaluateExpr: can not find join field in left")
+			return nil, util.Error("#EvaluateExpr: can not find join field[%s] in left", expr.Field)
 		}
 		return lrows[lpos], nil
 	}
@@ -114,7 +115,7 @@ func EvaluateExpr(expr *Expression, lcols []string, lrows []Value, rcols []strin
 			}
 			return OperationCompareValue(lv, rv, expr.OperationVal)
 		}
-		return nil, util.Error("[EvaluateExpr] not support operation")
+		return nil, util.Error("#EvaluateExpr: not support operation")
 	}
 	return nil, nil
 }
@@ -128,7 +129,7 @@ func OperationCompareValue(lv, rv Value, operation Operation) (Value, error) {
 				return &ConstBool{Value: true}, nil
 			}
 		} else {
-			return nil, util.Error("[OperationCompareValue]OperationEqual can not compare value")
+			return nil, util.Error("#OperationCompareValue OperationEqual can not compare value")
 		}
 		return &ConstBool{Value: false}, nil
 	case *OperationGreaterThan:
@@ -137,7 +138,7 @@ func OperationCompareValue(lv, rv Value, operation Operation) (Value, error) {
 				return &ConstBool{Value: true}, nil
 			}
 		} else {
-			return nil, util.Error("[OperationCompareValue]OperationGreaterThan can not compare value")
+			return nil, util.Error("#OperationCompareValue OperationGreaterThan can not compare value")
 		}
 		return &ConstBool{Value: false}, nil
 	case *OperationLessThan:
@@ -146,7 +147,7 @@ func OperationCompareValue(lv, rv Value, operation Operation) (Value, error) {
 				return &ConstBool{Value: true}, nil
 			}
 		} else {
-			return nil, util.Error("[OperationCompareValue]OperationLessThan can not compare value")
+			return nil, util.Error("#OperationCompareValue OperationLessThan can not compare value")
 		}
 		return &ConstBool{Value: false}, nil
 	}
@@ -498,8 +499,9 @@ func formatRows(rows []Row, maxLen []int) string {
 }
 
 type ScanTableResult struct {
-	Columns []string
-	Rows    []Row
+	TableName string
+	Columns   []string
+	Rows      []Row
 }
 
 func RowsToString(row Row) string {
