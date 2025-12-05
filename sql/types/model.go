@@ -17,6 +17,21 @@ const (
 	Null
 )
 
+func GetDataTypeInfo(dataType DataType) string {
+	switch dataType {
+	case Integer:
+		return "Integer"
+	case Float:
+		return "Float"
+	case String:
+		return "String"
+	case Null:
+		return "Null"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 type Column struct {
 	Name         string
 	DateType     DataType

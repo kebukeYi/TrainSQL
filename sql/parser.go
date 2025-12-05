@@ -817,7 +817,7 @@ func (p *Parser) parseShow() (Statement, error) {
 				// 展示指定表信息
 				TableName: tableName,
 			}, nil
-		} else if token.Value == DataBase {
+		} else if token.Value == Tables {
 			// 展示全部表;
 			return &ShowTDataBaseData{}, nil
 		} else {

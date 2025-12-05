@@ -268,7 +268,7 @@ func (p *Plan) BuildExecutor(node Node) Executor {
 }
 
 func (p *Plan) buildScan(tableName string, whereClause *types.Expression) (Node, error) {
-	//
+	// 解析出 左右两边的值;
 	scanFilter := p.parseScanFilter(whereClause)
 	if scanFilter != nil {
 		// 解析 join on id = order_id 时的特殊情况;
@@ -286,13 +286,13 @@ func (p *Plan) buildScan(tableName string, whereClause *types.Expression) (Node,
 			return nil, err
 		}
 		for _, column := range table.Columns {
-			if column.Name == scanFilter.field && column.PrimaryKey == true {
+			if column.Name == scanFilter.field && column.PrimaryKey == true && scanFilter.opType == EqualType {
 				return &PrimaryKeyScanNode{
 					TableName: tableName,
 					Value:     scanFilter.value,
 				}, nil
 			}
-			if column.Name == scanFilter.field && column.IsIndex == true {
+			if column.Name == scanFilter.field && column.IsIndex == true && scanFilter.opType == EqualType {
 				return &IndexScanNode{
 					TableName: tableName,
 					Filed:     scanFilter.field,
@@ -312,9 +312,20 @@ func (p *Plan) buildScan(tableName string, whereClause *types.Expression) (Node,
 	}
 }
 
+type OperationType int32
+
+const (
+	EqualType OperationType = iota
+	LessType
+	LessEqualType
+	GreaterType
+	GreaterEqualType
+)
+
 type FilterValue struct {
-	field string
-	value types.Value
+	opType OperationType
+	field  string
+	value  types.Value
 }
 
 func (p *Plan) parseScanFilter(filter *types.Expression) *FilterValue {
@@ -341,8 +352,27 @@ func (p *Plan) parseScanFilter(filter *types.Expression) *FilterValue {
 			left := p.parseScanFilter(equal.Left)
 			right := p.parseScanFilter(equal.Right)
 			return &FilterValue{
-				field: left.field,
-				value: right.value,
+				opType: EqualType,
+				field:  left.field,
+				value:  right.value,
+			}
+		case *types.OperationGreaterThan:
+			greaterThan := filter.OperationVal.(*types.OperationGreaterThan)
+			left := p.parseScanFilter(greaterThan.Left)
+			right := p.parseScanFilter(greaterThan.Right)
+			return &FilterValue{
+				opType: GreaterType,
+				field:  left.field,
+				value:  right.value,
+			}
+		case *types.OperationLessThan:
+			greaterThan := filter.OperationVal.(*types.OperationLessThan)
+			left := p.parseScanFilter(greaterThan.Left)
+			right := p.parseScanFilter(greaterThan.Right)
+			return &FilterValue{
+				opType: LessType,
+				field:  left.field,
+				value:  right.value,
 			}
 		}
 		return nil

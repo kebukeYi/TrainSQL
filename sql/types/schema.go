@@ -10,7 +10,7 @@ type Table struct {
 	Columns []ColumnV
 }
 
-func (t *Table) Validate() {
+func (t *Table) Validate() error {
 	if t.Columns == nil || len(t.Columns) == 0 {
 		util.Error("[Table] %s columns is nil", t.Name)
 	}
@@ -21,7 +21,7 @@ func (t *Table) Validate() {
 			count++
 		}
 		if column.PrimaryKey && column.Nullable {
-			util.Error("[Table] %s column %s can not be nullable", t.Name, column.Name)
+			return util.Error("[Table] %s column %s can not be nullable", t.Name, column.Name)
 		}
 		if column.DefaultValue != nil {
 			// 尽管列的定义是 int string bool, float, 但是仍允许列为 默认值为  NULL;
@@ -29,13 +29,14 @@ func (t *Table) Validate() {
 				continue
 			}
 			if column.DefaultValue.DateType() != column.DataType {
-				util.Error("[Table] %s column %s default value type %d not match %d", t.Name, column.Name, column.DefaultValue.DateType(), column.DataType)
+				return util.Error("[Table] %s column %s default value type %d not match %d", t.Name, column.Name, column.DefaultValue.DateType(), column.DataType)
 			}
 		}
 	}
 	if count != 1 {
-		util.Error("[Table] %s has no primary key", t.Name)
+		return util.Error("[Table] %s has no primary key", t.Name)
 	}
+	return nil
 }
 
 func (t *Table) GetPrimaryKeyOfValue(row Row) Value {
@@ -47,19 +48,9 @@ func (t *Table) GetPrimaryKeyOfValue(row Row) Value {
 	return nil
 }
 
-func (t *Table) GetColPos(colName string) int32 {
-	for i, column := range t.Columns {
-		if column.Name == colName {
-			return int32(i)
-		}
-	}
-	util.Error("[Table] %s has no column %s", t.Name, colName)
-	return -1
-}
-
 func (t *Table) ToString() string {
 	str := fmt.Sprintf("TABLE_NAME: %s\n", t.Name)
-	str += "COLUMNS: {"
+	str += "COLUMNS: { \n"
 	for _, column := range t.Columns {
 		str += column.ToString()
 		str += "\n"
@@ -77,7 +68,8 @@ type ColumnV struct {
 }
 
 func (c *ColumnV) ToString() string {
-	col_desc := fmt.Sprintf("%s %d", c.Name, c.DataType)
+	dataTypeInfo := GetDataTypeInfo(c.DataType)
+	col_desc := fmt.Sprintf("%s %s", c.Name, dataTypeInfo)
 	if c.PrimaryKey {
 		col_desc += " PRIMARY KEY"
 	}

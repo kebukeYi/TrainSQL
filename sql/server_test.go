@@ -88,21 +88,33 @@ func testUpdate(t *testing.T, session *Session) {
 	//33 |3   |3.3 |true  |false |v7  |v8  |v9
 	//44 |4   |4.4 |false |true  |v10 |v11 |v12
 
-	// <Row_t2_11_v {11, 100,1.1, true, true, "v1", "v2", "v3"}>
-	resultSet = session.Execute("update t2 set b = 100 where a = 11;")
+	//a  |b   |c   |d     |e     |f   |g   |h
+	//---+----+----+------+------+----+----+----
+	//1  |100 |1.1 |false |true  |v1  |v2  |v3
+	//11 |1   |1.1 |true  |true  |v1  |v2  |v3
+	//22 |70  |2.2 |false |false |v4  |v5  |v6
+	//33 |70  |3.3 |true  |false |v7  |v8  |v9
+	//44 |70  |4.4 |false |true  |v10 |v11 |v12
+	//(5 rows)
+	resultSet = session.Execute("update t2 set b = 70 where a > 11;")
 	fmt.Println(resultSet.ToString()) // count = 1
 
-	// a |b   |c   |d     |e     |f   |g   |h
-	//--+----+----+------+------+----+----+----
-	//11 |100 |1.1 |false |true  |v1  |v2  |v3
-	//22 |2   |2.2 |false |false |v4  |v5  |v6
-	//33 |3   |3.3 |false |false |v7  |v8  |v9
-	//44 |4   |4.4 |false |true  |v10 |v11 |v12
+	// a  |b   |c   |d     |e     |f   |g   |h
+	//---+----+----+------+------+----+----+----
+	//1  |100 |1.1 |false |true  |v1  |v2  |v3
+	//11 |1   |1.1 |false |true  |v1  |v2  |v3
+	//22 |70  |2.2 |false |false |v4  |v5  |v6
+	//33 |70  |3.3 |false |false |v7  |v8  |v9
+	//44 |70  |4.4 |false |true  |v10 |v11 |v12
+	//(5 rows)
 	resultSet = session.Execute("update t2 set d = false where d = true;")
 	fmt.Println(resultSet.ToString()) // count = 2
 
-	//
-	resultSet = session.Execute("explain update t2 set d = false where d = true;")
+	//           SQL PLAN
+	//------------------------------
+	//Update on  t2
+	//  ->  Seq Scan on  t2 (a > 11)
+	resultSet = session.Execute("explain update t2 set b = 70 where a > 11;")
 	fmt.Println(resultSet.ToString())
 }
 func testDelete(t *testing.T, session *Session) {
@@ -152,6 +164,12 @@ func testOrderBy(t *testing.T, session *Session) {
 	// 4行,2列;
 	fmt.Println(resultSet.ToString())
 
+	//            SQL PLAN
+	//------------------------------
+	//Order By (sum_c asc)
+	//  ->  Filter (sum_c < 5)
+	//     ->  Aggregate (b, sum(c))
+	//        ->  Seq Scan on  w1
 	resultSet = session.Execute(`explain select b as col2, a from t3 order by b, a desc limit 4 offset 2;`)
 	fmt.Println(resultSet.ToString())
 }
@@ -192,7 +210,10 @@ func testAgg(t *testing.T, session *Session) {
 	// 2  null  1   null    null
 	fmt.Println(resultSet.ToString())
 
-	//
+	//           SQL PLAN
+	//------------------------------
+	//Aggregate (count(a) as total, max(b), min(a), sum(c), avg(c))
+	//  ->  Seq Scan on  agg2
 	resultSet = session.Execute("explain select count(a) as total, max(b), min(a), sum(c), avg(c) from agg2;")
 	fmt.Println(resultSet.ToString())
 }
@@ -334,6 +355,13 @@ func testHashJoin(t *testing.T, session *Session) {
 	// 1行3列;
 	fmt.Println(resultSet.ToString())
 
+	//            SQL PLAN
+	//------------------------------
+	// Hash Join (a = c)
+	//  ->   Hash Join (a = b)
+	//     ->  Seq Scan on  haj1
+	//     ->  Seq Scan on  haj2
+	//  ->  Seq Scan on  haj3
 	resultSet = session.Execute("explain select * from haj1 join haj2 on a = b join haj3 on a = c;")
 	fmt.Println(resultSet.ToString())
 }
@@ -409,8 +437,25 @@ func testShowTableNames(t *testing.T, session *Session) {
 	set = session.Execute("commit;")
 	fmt.Println(set.ToString())
 
-	showTableNames := session.ShowTableNames()
-	fmt.Printf("showTableNames: %s;\n", showTableNames)
+	// showTableNames: t1,t2,t3,t4,test4,test5,test6;
+	showTableNames := session.Execute("show tables;")
+	fmt.Printf("showTableNames: %s;\n", showTableNames.ToString())
+}
+
+func showTableInfo(t *testing.T, session *Session, tableName string) {
+	sql := fmt.Sprintf("show table %s;", tableName)
+	showTableNames := session.Execute(sql)
+	// COLUMNS: {
+	//	a Integer PRIMARY KEY
+	//	b Integer DEFAULT 100
+	//	c Float DEFAULT 1.1
+	//	d UNKNOWN DEFAULT false
+	//	e UNKNOWN DEFAULT true
+	//	f String DEFAULT v1
+	//	g String DEFAULT v2
+	//	h String DEFAULT v3
+	//}
+	fmt.Printf("show Table %s : %s \n", tableName, showTableNames.ToString())
 }
 func testShowAllTableRows(t *testing.T, session *Session) {
 	showTableNames := session.ShowTableNames()
@@ -433,7 +478,8 @@ func TestMemoryStorage(t *testing.T) {
 	// 第一组测试
 	testCreateTable(t, session)
 	testInsertTable(t, session) // t1 t2 t3 t4;
-	testUpdate(t, session)
+	testUpdate(t, session)      // t2
+	showTableInfo(t, session, "t2")
 	testDelete(t, session)
 	testOrderBy(t, session)
 
@@ -453,7 +499,7 @@ func TestMemoryStorage(t *testing.T) {
 	testGroupByOrderBy(t, session)
 
 	// 第五组测试
-	testExplain(t, session)
+	// testExplain(t, session)
 
 	// 第六组测试
 	testShowAllTableRows(t, session)

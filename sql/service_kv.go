@@ -132,7 +132,9 @@ func (s *KVService) CreateTable(table *types.Table) error {
 	if getTable != nil {
 		return util.Error("#CreateTable table already exists")
 	}
-	table.Validate()
+	if err = table.Validate(); err != nil {
+		return err
+	}
 
 	var buffer bytes.Buffer
 	encoder := gob.NewEncoder(&buffer)
