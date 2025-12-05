@@ -5,7 +5,7 @@ import (
 )
 
 type ServerManager struct {
-	// 统一事务管理器
+	// 统一事务管理器;
 	txnManager *storage.TransactionManager
 }
 

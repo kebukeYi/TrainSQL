@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	NextVersion = "NextVersion_"
+	NextVersion = "NextVersion"
 	TenActive   = "TenActive_"
 	TxnWrite    = "TxnWrite_"
 	KeyVersion  = "KeyVersion_"
