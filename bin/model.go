@@ -30,28 +30,6 @@ func (r *Response) Serialize() string {
 
 // ParseRequest 解析客户端请求（从字符串解析为Request）
 func ParseRequest(data string) (*Request, error) {
-	// 切割指令和参数（格式：cmd: args）
-	//sepIdx := -1
-	//for i, c := range data {
-	//	if c == ':' {
-	//		sepIdx = i
-	//		break
-	//	}
-	//}
-	//if sepIdx == -1 {
-	//	return nil, fmt.Errorf("无效指令格式，正确格式：cmd: 参数（如 query: select * from user）")
-	//}
-	//
-	//cmd := data[:sepIdx]
-	//args := data[sepIdx+1:]
-	//// 去除首尾空格
-	//cmd = trimSpace(cmd)
-	//args = trimSpace(args)
-	//
-	//if cmd == "" {
-	//	return nil, fmt.Errorf("指令类型不能为空")
-	//}
-
 	return &Request{
 		Cmd:  "SQL",
 		Args: data,

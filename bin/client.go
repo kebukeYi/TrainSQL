@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -73,7 +74,8 @@ func (c *TCPClient) Interact() {
 }
 
 func main() {
-	serverAddr := "127.0.0.1:8888"
+	var serverAddr string
+	flag.StringVar(&serverAddr, "s", "127.0.0.1:8888", "服务器地址")
 	client := NewTCPClient(serverAddr)
 
 	if err := client.Connect(); err != nil {

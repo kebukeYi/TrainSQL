@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"github.com/kebukeYi/TrainSQL/sql"
 	"github.com/kebukeYi/TrainSQL/storage"
@@ -39,10 +40,10 @@ func (s *TCPServer) registerHandler(cmd string, handler CmdHandler) {
 	s.handlers[cmd] = handler
 }
 
-func (s *TCPServer) Start() error {
-	// 1.本地服务先起来;
-	memoryStorage := storage.NewMemoryStorage()
-	serverManager := sql.NewServer(memoryStorage)
+func (s *TCPServer) Start(diskPath string) error {
+	// 1.本地服务起来;
+	storage := storage.NewDiskStorage(diskPath)
+	serverManager := sql.NewServer(storage)
 	defer serverManager.Close()
 	// 2.监听TCP端口;
 	listener, err := net.Listen("tcp", s.addr)
@@ -173,7 +174,11 @@ func handleExit(_ *Request, _ *sql.Session) *Response {
 
 // 服务器主函数
 func main() {
-	server := NewTCPServer(":8888")
+	var diskPath string
+	flag.StringVar(&diskPath, "d", "/user/trainsql_data/", "数据存放位置")
+	port := flag.Int("p", 8888, "服务端口")
+	addr := fmt.Sprintf(":%d", *port)
+	server := NewTCPServer(addr)
 
 	// 捕获退出信号（Ctrl+C）
 	go func() {
@@ -182,7 +187,7 @@ func main() {
 	}()
 
 	// 启动服务器
-	if err := server.Start(); err != nil {
+	if err := server.Start(diskPath); err != nil {
 		fmt.Printf("服务器启动失败：%v\n", err)
 		os.Exit(1)
 	}
