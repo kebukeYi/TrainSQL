@@ -48,7 +48,7 @@ func (c *TCPClient) Interact() {
 				}
 				os.Exit(0)
 			}
-			fmt.Printf("\n服务器响应长度: %d \n", n)
+			// fmt.Printf("\n服务器响应长度: %d \n", n)
 			// 直接打印原始字节内容(保留所有换行符)
 			fmt.Print(string(buf[:n]))
 			buf = buf[:0]
@@ -63,7 +63,7 @@ func (c *TCPClient) Interact() {
 			fmt.Println("收到退出指令")
 			return
 		}
-		fmt.Println("用户输入的长度: ", len(text))
+		//fmt.Println("用户输入的长度: ", len(text))
 		// 发送指令
 		_, err := c.conn.Write([]byte(text))
 		if err != nil {

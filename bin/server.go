@@ -98,7 +98,7 @@ func (s *TCPServer) handleClient(conn net.Conn, session *sql.Session) {
 		buf = buf[:cap(buf)]
 		// 按字节读取, 直到遇到EOF;
 		n, err := reader.Read(buf)
-		fmt.Println("接收到客户端数据长度:", n)
+		// fmt.Println("接收到客户端数据长度:", n)
 		if err != nil {
 			if err == io.EOF {
 				fmt.Println("\n与客户端的连接已断开")
@@ -157,7 +157,7 @@ func (s *TCPServer) Stop() {
 // 处理查询指令
 func handleSQL(req *Request, session *sql.Session) *Response {
 	if req.Args == "" {
-		return &Response{Success: false, Msg: "指令缺少参数（如 query: select * from user）"}
+		return &Response{Success: false, Msg: "指令缺少参数(如 select * from user;)"}
 	}
 	resultSet := session.Execute(req.Args)
 	// 模拟查询逻辑
