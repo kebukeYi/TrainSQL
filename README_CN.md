@@ -13,7 +13,7 @@
 [![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-green)](https://opensource.org/licenses/Apache-2.0)
 
-A simple SQL database implemented in Golang, supporting transactions and MVCC (Multi-Version Concurrency Control) features. The storage layer uses a KV storage engine based on the BitCask model.
+一个用 Golang 实现的简易 SQL 数据库，支持事务和 MVCC（多版本并发控制）特性。存储层使用基于 BitCask 模型的 KV 存储引擎。
 
 # 🚀 快速开始
 
