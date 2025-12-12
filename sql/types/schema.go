@@ -12,7 +12,7 @@ type Table struct {
 
 func (t *Table) Validate() error {
 	if t.Columns == nil || len(t.Columns) == 0 {
-		util.Error("[Table] %s columns is nil", t.Name)
+		return util.Error("#Validate table: %s columns is nil", t.Name)
 	}
 	// 校验是否有主键
 	count := 0

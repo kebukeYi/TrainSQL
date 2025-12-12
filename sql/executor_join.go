@@ -216,7 +216,7 @@ func parseJoinFilter(expression *types.Expression) *HashJoinFilterVal {
 			return hashJoinFilterVal
 		} else if expression.OperationVal != nil {
 			switch expression.OperationVal.(type) {
-			// 目前只有 id = order_id 的情况;
+			// todo 目前只支持 id = order_id 的情况;
 			case *types.OperationEqual:
 				equal := expression.OperationVal.(*types.OperationEqual)
 				hashJoinFilterVal.leftVal = parseJoinFilter(equal.Left).leftVal

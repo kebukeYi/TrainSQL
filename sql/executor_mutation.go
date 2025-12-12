@@ -23,7 +23,7 @@ func NewInsertTableExecutor(tableName string, columns []string, values [][]*type
 // tbl:
 // insert into tbl values(1, 2, 3);
 // a       b       c      d
-// 1       2       3     无值   (default 填充)
+// 1       2       3     无指定值,则 default 填充;
 func padRow(table *types.Table, row types.Row) (types.Row, error) {
 	for id, column := range table.Columns {
 		if id >= len(row) {
@@ -80,7 +80,8 @@ func (i *InsertTableExecutor) Execute(s Service) types.ResultSet {
 	// 每一行数据;
 	for _, expressions := range i.Values {
 		var row []types.Value
-		for _, expression := range expressions { // 每一行的多个列;
+		// 每一行的多个列;
+		for _, expression := range expressions {
 			row = append(row, expression.ConstVal)
 		}
 		// 如果没有指定插入的列;
@@ -100,7 +101,10 @@ func (i *InsertTableExecutor) Execute(s Service) types.ResultSet {
 				}
 			}
 		}
-		s.CreateRow(i.TableName, row)
+		err = s.CreateRow(i.TableName, row)
+		if err != nil {
+			return &types.ErrorResult{ErrorMessage: err.Error()}
+		}
 		count++
 	}
 	return &types.InsertTableResult{
@@ -146,15 +150,18 @@ func (u *UpdateTableExecutor) Execute(s Service) types.ResultSet {
 				}
 			}
 			// 执行更新操作;
-			// 1.如果有主键更新，删除原来的数据，新增一条新的数据;
-			// 2.否则就 table_name + primary key => 更新数据
+			// 1.如果有主键更新: 删除原来的数据, 新增一条新的数据;
+			// 2.否则就 table_name + primary key => 更新数据;
 			// 所有行的存储结构是: tableName_primaryKey_
-			s.UpdateRow(table, pKValue, row)
+			err = s.UpdateRow(table, pKValue, row)
+			if err != nil {
+				return &types.ErrorResult{ErrorMessage: err.Error()}
+			}
 			update++
 		}
 	default:
 		return &types.ErrorResult{
-			ErrorMessage: util.Error("[UpdateTableExecutor] Unsupported result type: %T\n", result).Error(),
+			ErrorMessage: util.Error("#UpdateTableExecutor Unsupported result type: %T\n", result).Error(),
 		}
 	}
 	return &types.UpdateTableResult{
@@ -191,7 +198,10 @@ func (d *DeleteTableExecutor) Execute(s Service) types.ResultSet {
 		for _, row := range selectTableResult.Rows {
 			// update user set name='kk' where id = 1; // 可能存在多行需要更新;
 			pKValue := table.GetPrimaryKeyOfValue(row)
-			s.DeleteRow(table, pKValue)
+			err = s.DeleteRow(table, pKValue)
+			if err != nil {
+				return &types.ErrorResult{ErrorMessage: err.Error()}
+			}
 			count++
 		}
 	default:

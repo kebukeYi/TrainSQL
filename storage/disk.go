@@ -8,8 +8,7 @@ import (
 
 type DiskStorage struct {
 	lock sync.RWMutex
-	// Bitcast 模型 kv 数据库;
-	db *rosedb.DB
+	db   *rosedb.DB
 }
 
 func NewDiskStorage(dirPath string) *DiskStorage {

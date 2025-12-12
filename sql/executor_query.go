@@ -126,7 +126,7 @@ func (scan *PrimaryKeyScanExecutor) Execute(s Service) types.ResultSet {
 	}
 }
 
-// FilterExecutor 扫描过程: 针对 where 表达式进行过滤;
+// FilterExecutor 扫描过程: 针对 having 表达式进行过滤;
 type FilterExecutor struct {
 	Source    Executor
 	Predicate *types.Expression
@@ -167,8 +167,7 @@ func (filter *FilterExecutor) Execute(s Service) types.ResultSet {
 
 type ProjectExecutor struct {
 	Source Executor
-	//Exprs  map[*types.Expression]string
-	Exprs []*SelectCol
+	Exprs  []*SelectCol
 }
 
 func NewProjectExecutor(source Executor, exprs []*SelectCol) *ProjectExecutor {
@@ -210,8 +209,9 @@ func (project *ProjectExecutor) Execute(s Service) types.ResultSet {
 			Rows:    newRows,
 		}
 	}
-	util.Error("ProjectExecutor.Execute error resultSet type")
-	return nil
+	return &types.ErrorResult{
+		ErrorMessage: util.Error("ProjectExecutor.Execute error resultSet type").Error(),
+	}
 }
 
 type OrderDirection struct {
@@ -220,9 +220,7 @@ type OrderDirection struct {
 }
 
 type OrderExecutor struct {
-	Source Executor
-	// 重大bug: map的遍历没有顺序性; 应该使用 切片数组, 保证遍历时按照插入顺序返回;
-	// OrderBy map[string]OrderDirection
+	Source  Executor
 	OrderBy []*OrderDirection
 }
 
@@ -260,7 +258,7 @@ func (order *OrderExecutor) Execute(s Service) types.ResultSet {
 					continue
 				}
 				if cmp == 0 {
-					continue // 判断下一个比较条件
+					continue // 判断下一个比较条件;
 				}
 				if orderDirection.direction == OrderAsc {
 					return cmp < 0

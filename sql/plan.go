@@ -377,7 +377,6 @@ func (p *Plan) parseScanFilter(filter *types.Expression) *FilterValue {
 		}
 		return nil
 	} else {
-		// 无值返回 nil
 		return nil
 	}
 }

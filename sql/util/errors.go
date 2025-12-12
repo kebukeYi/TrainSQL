@@ -14,8 +14,8 @@ func IsIntegerStrict(s string) bool {
 	return err == nil
 }
 
-func ClearPath(dirPath string) {
-	os.RemoveAll(dirPath)
+func ClearPath(dirPath string) error {
+	return os.RemoveAll(dirPath)
 }
 
 func Error(format string, args ...interface{}) error {

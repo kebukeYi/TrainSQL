@@ -385,7 +385,7 @@ func (p *Parser) parseInsert() (Statement, error) {
 			} else if next.Type == CLOSEPAREN {
 				break
 			} else {
-				return nil, util.Error("Unexpected token: %s\n", next.ToString())
+				return nil, util.Error("$parseInsert Unexpected token: %s\n", next.ToString())
 			}
 		}
 		columns = cols
@@ -413,7 +413,7 @@ func (p *Parser) parseInsert() (Statement, error) {
 			} else if next.Type == CLOSEPAREN {
 				break
 			} else {
-				return nil, util.Error("Unexpected token: %s\n", next.ToString())
+				return nil, util.Error("#parseInsert Unexpected token: %s\n", next.ToString())
 			}
 		}
 		values = append(values, exprs)

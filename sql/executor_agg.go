@@ -11,8 +11,7 @@ import (
 type AggregateExecutor struct {
 	Source   Executor
 	SeqExprs []*SelectCol // 保证遍历时按照插入顺序输出;
-	// Exprs    map[*types.Expression]string // <表达式, 别名>
-	GroupBy *types.Expression
+	GroupBy  *types.Expression
 }
 
 func NewAggregateExecutor(source Executor, exprs []*SelectCol, groupBy *types.Expression) *AggregateExecutor {
@@ -22,7 +21,9 @@ func NewAggregateExecutor(source Executor, exprs []*SelectCol, groupBy *types.Ex
 		GroupBy:  groupBy,
 	}
 }
+
 func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
+	// 批处理模型, 非火山模型;
 	resultSet := agg.Source.Execute(s)
 	switch resultSet.(type) {
 	case *types.ScanTableResult:
@@ -120,19 +121,18 @@ func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
 			for _, row := range result.Rows {
 				// 获取当前行中「GROUP BY 列」的值, 作为分组的 “键”;
 				key := row[pos]
-				hashKey := key.Hash()
+				hashKey := key.Hash() // 对每行的 列值进行hash计算, 作为相同值的key来分组;
 				// 当前列肯定有多个 相同的值, 直接追加即可;
 				// aggMap[key] = append(aggMap[key], row)
 				aggMap[hashKey] = append(aggMap[hashKey], row)
 			}
-			// 存在 group by 关键字,对,每一组进行聚合函数计算:
+
+			// 存在 group by 关键字,对每一组进行聚合函数计算:
 			// 1. 列的值并没有重复, 原来是多少行就还是多少行;
 			// 2. 列的值出现了重复, 重复的行需进行重叠分组;
 			// aggMap的长度就等于 要返回的行数量;
 			for _, rows := range aggMap {
-				// 传入的每个分组的 row[];
-				// 假如没有分组, 那么每次就传入一条row;
-				// row := calc(K, v)
+				// 传入的每个分组的多行 row[];假如没有分组, 那么每次就传入一条row;
 				value := rows[0][pos]
 				row, err := calc(value, rows)
 				if err != nil {
@@ -141,6 +141,7 @@ func (agg *AggregateExecutor) Execute(s Service) types.ResultSet {
 				newRows = append(newRows, row)
 			}
 		} else {
+			// 没有存在分组关键字, 那么可以认为对全部行数据进行分组计算;
 			row, err := calc(nil, result.Rows)
 			if err != nil {
 				return &types.ErrorResult{ErrorMessage: err.Error()}
@@ -198,6 +199,7 @@ func (c *CountCal) Calc(colName string, cols []string, rows []types.Row) (types.
 	count := 0
 	nullVal := &types.ConstNull{}
 	for _, row := range rows {
+		// 只要当前行的列值, 不为null, 那么就统计其有效;
 		if bytes.Compare(row[pos].Bytes(), nullVal.Bytes()) != 0 {
 			count++
 		}

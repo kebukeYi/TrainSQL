@@ -1,7 +1,6 @@
 package sql
 
 import (
-	"fmt"
 	"github.com/kebukeYi/TrainSQL/sql/types"
 )
 
@@ -16,7 +15,10 @@ func NewCreateTableExecutor(schema *types.Table) *CreatTableExecutor {
 }
 func (c *CreatTableExecutor) Execute(s Service) types.ResultSet {
 	tableName := c.Schema.Name
-	s.CreateTable(c.Schema)
+	err := s.CreateTable(c.Schema)
+	if err != nil {
+		return &types.ErrorResult{ErrorMessage: err.Error()}
+	}
 	return &types.CreateTableResult{TableName: tableName}
 }
 
@@ -30,8 +32,10 @@ func NewDropTableExecutor(tableName string) *DropTableExecutor {
 	}
 }
 func (d *DropTableExecutor) Execute(s Service) types.ResultSet {
-	fmt.Println("ExecuteDropTable")
 	tableName := d.TableName
-	s.DropTable(tableName)
+	err := s.DropTable(tableName)
+	if err != nil {
+		return &types.ErrorResult{ErrorMessage: err.Error()}
+	}
 	return &types.DropTableResult{TableName: tableName}
 }
