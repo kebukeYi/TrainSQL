@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/kebukeYi/TrainSQL/sql/util"
 	"github.com/stretchr/testify/assert"
+	"sync"
 	"testing"
 	"time"
 )
@@ -13,6 +14,46 @@ var txnDirPath = "/usr/golanddata/trainsql/txn"
 func GetDiskStorage(txnDirPath string) *DiskStorage {
 	util.ClearPath(txnDirPath)
 	return NewDiskStorage(txnDirPath)
+}
+
+func TestTransaction_SI_get(t *testing.T) {
+	transactionManager := NewTransactionManager(GetDiskStorage(txnDirPath))
+	t0 := transactionManager.Begin()
+	t0.Set([]byte("key1"), []byte("value1"))
+	t0.Set([]byte("key2"), []byte("value2"))
+	t0.Set([]byte("key3"), []byte("value3"))
+	t0.Set([]byte("key4"), []byte("value4"))
+	t0.Commit()
+	wg := sync.WaitGroup{}
+	t1 := transactionManager.Begin()
+	go func() {
+		wg.Add(1)
+		defer wg.Done()
+		assert.Equal(t, []byte("value1"), t1.Get([]byte("key1")))
+		time.Sleep(5 * time.Second)
+		err := t1.Set([]byte("key2"), []byte("value2-1"))
+		if err != nil {
+			fmt.Println(err.Error())
+			t1.Rollback()
+		} else {
+			assert.Equal(t, []byte("value1"), t1.Get([]byte("key1")))
+			// 在 SSI 隔离级别下, 当前的 t1 是无法成功提交的, 因为t2修改了当前t1之前读过的数据;
+			// 在 SI  隔离级别下, 当前的 t1 是可以成功提交的; 但是会有 写偏斜(Write Skew)问题;
+			t1.Commit() // 当前是 SI 隔离级别;
+		}
+	}()
+
+	t2 := transactionManager.Begin()
+	go func() {
+		err := t2.Set([]byte("key1"), []byte("value1-2"))
+		if err != nil {
+			fmt.Println(err.Error())
+			t2.Rollback()
+		} else {
+			t2.Commit()
+		}
+	}()
+	wg.Wait()
 }
 
 func TestTransaction_get(t *testing.T) {
